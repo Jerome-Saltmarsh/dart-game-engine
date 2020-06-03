@@ -8,10 +8,9 @@ class Planet {
   Vector2 shiftedDestination;
   Vector2 previousDestination;
   Vector2 velocity;
-  double radius = 10;
+  double mass;
 
-
-  Planet(this.position, this.radius, this.velocity) {
+  Planet(this.position, this.mass, this.velocity) {
     previousDestination = position - velocity;
   }
 
@@ -21,16 +20,19 @@ class Planet {
 
   Vector2 get momentum => velocity * mass;
 
-  double get mass {
-    return (pi * radius * radius);
-  }
+  double get radius => sqrt(mass / pi) * Game.density;
 }
 
 class Game {
   List<Planet> planets = [];
-  double Mass_To_Radius_Ratio = 1;
+  static double density = 1;
+  bool paused = false;
 
   void update() {
+    if (paused) {
+      return;
+    }
+
     planets.forEach((planet) {
       planet.nextDestination = planet.position + planet.velocity;
       planet.shiftedDestination =
@@ -52,7 +54,7 @@ class Game {
         if (distance < combinedRadius) {
           Vector2 combinedMomentum = planets[i].momentum + planets[j].momentum;
           double combinedMass = planets[i].mass + planets[j].mass;
-          planets[i].radius = convertMassToRadius(combinedMass);
+          planets[i].mass = combinedMass;
           planets[i].velocity = combinedMomentum / combinedMass;
           planets.removeAt(j);
           j--;
@@ -60,8 +62,6 @@ class Game {
       }
     }
   }
-
-
 
   Vector2 calculateSpacialShift(Vector2 position, Planet planet) {
     Vector2 shiftedPosition = position;
@@ -93,19 +93,17 @@ class Game {
     return value;
   }
 
-  Planet add(Vector2 position, double radius, {Vector2 velocity}) {
-    Planet planet = Planet(position, radius, velocity);
+  Planet add(Vector2 position, double mass, {Vector2 velocity}) {
+    Planet planet = Planet(position, mass, velocity);
     planets.add(planet);
     return planet;
   }
 
-  double convertMassToRadius(double mass)
-  {
-    return sqrt(mass / pi) * Mass_To_Radius_Ratio;
+  double convertMassToRadius(double mass) {
+    return sqrt(mass / pi) * density;
   }
 
-  double convertRadiusToMass(double radius)
-  {
-    return (pi * radius * radius) / Mass_To_Radius_Ratio;
+  double convertRadiusToMass(double radius) {
+    return (pi * radius * radius) / density;
   }
 }

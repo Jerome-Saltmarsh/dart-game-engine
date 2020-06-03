@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/material.dart' as mat;
 import 'package:onlinepainter/game.dart';
@@ -34,14 +35,16 @@ class _MyHomePageState extends State<MyHomePage> {
   CustomPainter customPainter;
   CustomPaint customPaint;
 
+  int get framesPerSecond => 60;
+
   @override
   void initState() {
-    Timer.periodic(Duration(milliseconds: 100), (timer) {
+    Timer.periodic(Duration(milliseconds: 1000 ~/ framesPerSecond), (timer) {
       fixedUpdate();
     });
     game = Game();
-    game.add(Vector2(50, 50), 10, velocity: Vector2.zero());
-    game.add(Vector2(200, 50), 15, velocity: Vector2.zero());
+    game.add(Vector2(50, 50), 5, velocity: Vector2.zero());
+    game.add(Vector2(200, 50), 5, velocity: Vector2.zero());
     super.initState();
   }
 
@@ -64,22 +67,31 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         title: Text("Online Painter"),
       ),
-      body: Column(
-        children: <Widget>[
-          PositionedTapDetector(
-            onTap: (position) {
-              Vector2 pos = Vector2(position.relative.dx, position.relative.dy);
-              double radius = 10;
-              game.add(pos, radius, velocity: Vector2.zero());
-            },
-            child: Container(
-              color: mat.Colors.grey,
-              width: size.width,
-              height: size.height,
-              child: customPaint,
-            ),
+      body: PositionedTapDetector(
+        onTap: (position) {
+          Vector2 pos = Vector2(position.relative.dx, position.relative.dy);
+          double mass = 1;
+          pos.x *= camera.z;
+          pos.y *= camera.z;
+          game.add(pos, mass, velocity: Vector2.zero());
+        },
+        child: Listener(
+          onPointerSignal: (pointerSignal){
+            if(pointerSignal is PointerScrollEvent){
+              double scroll = pointerSignal.scrollDelta.dy;
+              zoom += (scroll * 0.01) * (zoom * 0.01);
+            }
+            if(pointerSignal is PointerDownEvent){
+              print("Dragging");
+            }
+          },
+          child: Container(
+            color: mat.Colors.black,
+            width: size.width,
+            height: size.height,
+            child: customPaint,
           ),
-        ],
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {},
@@ -90,11 +102,21 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-class Line {
-  Vector start;
-  Vector end;
+Paint circlePaint = Paint()
+  ..color = mat.Colors.white
+  ..strokeCap = StrokeCap.round
+  ..style = PaintingStyle.fill
+  ..strokeWidth = 1;
 
-  Line(this.start, this.end);
+Vector3 camera = Vector3(0,0, 1);
+
+double get zoom => camera.z;
+
+set zoom(double value){
+  if(value < 0.1){
+    value = 0.1;
+  }
+  camera.z = value;
 }
 
 class DrawCircle extends CustomPainter {
@@ -102,16 +124,10 @@ class DrawCircle extends CustomPainter {
 
   DrawCircle(this.game);
 
-  Paint circlePaint = Paint()
-    ..color = mat.Colors.red
-    ..strokeCap = StrokeCap.round
-    ..style = PaintingStyle.fill
-    ..strokeWidth = 1;
-
   @override
   void paint(Canvas canvas, Size size) {
     game.planets.forEach((planet) {
-      canvas.drawCircle(Offset(planet.position.x, planet.position.y), planet.radius, circlePaint);
+      canvas.drawCircle(Offset(planet.position.x / zoom, planet.position.y / zoom), planet.radius / zoom, circlePaint);
     });
   }
 
