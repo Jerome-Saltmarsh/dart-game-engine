@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 import 'dart:math';
 
@@ -27,6 +28,13 @@ class Planet {
   double get radius => sqrt(mass / pi) / density;
 }
 
+class PlanetCollision{
+  Planet source;
+  Planet target;
+
+  PlanetCollision(this.source, this.target);
+}
+
 class Universe {
   List<Planet> planets = [];
 
@@ -36,6 +44,8 @@ class Universe {
   double bottomBound = 300;
   bool bounded = true;
   int tailLength = 15;
+
+  StreamController<PlanetCollision> onPlanetDestroyed = StreamController();
 
   void update() {
     planets.forEach((planet) {
@@ -84,9 +94,15 @@ class Universe {
           planets[i].velocity = combinedMomentum / combinedMass;
           planets.removeAt(j);
           j--;
+
+          onPlanetDestroyed.add(PlanetCollision(planets[i], planets[j]));
         }
       }
     }
+  }
+
+  void dispose(){
+    onPlanetDestroyed.close();
   }
 
   Vector2 calculateSpacialShift(Vector2 position, Planet planet) {

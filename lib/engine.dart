@@ -43,19 +43,53 @@ class _GameEngineState extends State<GameEngine> {
     super.initState();
   }
 
+  void selectNextPlanet() {
+    if (universe.planets.isEmpty) return;
+
+    if (selectedPlanet == null) {
+      selectedPlanet = universe.planets[0];
+      return;
+    }
+    int index = universe.planets.indexOf(selectedPlanet);
+    selectedPlanet = universe.planets[(index + 1) % universe.planets.length];
+  }
+
+  void selectPreviousPlanet() {
+    if (universe.planets.isEmpty) return;
+
+    if (selectedPlanet == null) {
+      selectedPlanet = universe.planets[0];
+      return;
+    }
+    int index = universe.planets.indexOf(selectedPlanet);
+    selectedPlanet = universe.planets[(index - 1) % universe.planets.length];
+  }
+
   @override
   void dispose() {
     onKeyPressed.close();
+    universe.dispose();
     super.dispose();
   }
 
   void initialize() {
-    game = Universe();
+    if (universe == null) {
+      universe = Universe();
+      universe.onPlanetDestroyed.stream.listen(onCollision);
+    }
+    universe.planets.clear();
     camera = Vector3(0, 0, 1);
-    game.rightRound = _screenSize.width - 10;
-    game.bottomBound = _screenSize.height - appBarHeight;
+    universe.rightRound = _screenSize.width - 10;
+    universe.bottomBound = _screenSize.height - appBarHeight;
     for (int i = 0; i < 10; i++) {
       spawnRandomPlanet();
+    }
+    selectedPlanet = universe.planets[0];
+  }
+
+  void onCollision(PlanetCollision event) {
+    if (selectedPlanet == event.target) {
+      selectedPlanet = event.source;
     }
   }
 
@@ -71,21 +105,44 @@ class _GameEngineState extends State<GameEngine> {
     }
 
     Vector2 velocity = Vector2(rValue(2), rValue(2));
-    Planet planet = game.add(getRandomPosition(), mass);
+    Planet planet = universe.add(getRandomPosition(), mass);
     planet.velocity = velocity;
   }
 
   Vector2 getRandomPosition() {
     double padding = 20;
-    return Vector2(padding + random.nextDouble() * (game.rightRound - padding),
-        padding + (random.nextDouble() * (game.bottomBound - padding)));
+    return Vector2(
+        padding + random.nextDouble() * (universe.rightRound - padding),
+        padding + (random.nextDouble() * (universe.bottomBound - padding)));
   }
 
   void fixedUpdate() {
+    if (cameraTracking && selectedPlanet != null) {
+      cameraTrack(selectedPlanet.position);
+    }
+
     if (!_paused) {
-      game.update();
+      universe.update();
     }
     setState(doNothing);
+  }
+
+  void cameraTrack(Vector2 position) {
+//    double x = 0;
+//    double y = 0;
+//
+//    universe.planets.forEach((element) {
+//      x += element.position.x;
+//      y += element.position.y;
+//    });
+//
+//    x /= universe.planets.length;
+//    y /= universe.planets.length;
+
+    Offset sc = convertWorldToScreenPosition(position);
+    Vector2 t = convertScreenToWorldPosition(sc.dx - _screenSize.width * 0.5, sc.dy - (_screenSize.height * 0.5));
+    camera.x = t.x;
+    camera.y = t.y;
   }
 
   void doNothing() {
@@ -98,22 +155,32 @@ class _GameEngineState extends State<GameEngine> {
   }
 
   void onKeyEvent(RawKeyEvent event) {
-    double speed = 10 * camera.z;
 
-    if (event.isKeyPressed(LogicalKeyboardKey.keyA)) {
-      camera.x -= speed;
+    if(!cameraTracking){
+      double speed = 10 * camera.z;
+      if (event.isKeyPressed(LogicalKeyboardKey.keyA)) {
+        camera.x -= speed;
+      }
+      if (event.isKeyPressed(LogicalKeyboardKey.keyW)) {
+        camera.y -= speed;
+      }
+      if (event.isKeyPressed(LogicalKeyboardKey.keyD)) {
+        camera.x += speed;
+      }
+      if (event.isKeyPressed(LogicalKeyboardKey.keyS)) {
+        camera.y += speed;
+      }
     }
-    if (event.isKeyPressed(LogicalKeyboardKey.keyW)) {
-      camera.y -= speed;
-    }
-    if (event.isKeyPressed(LogicalKeyboardKey.keyD)) {
-      camera.x += speed;
-    }
-    if (event.isKeyPressed(LogicalKeyboardKey.keyS)) {
-      camera.y += speed;
-    }
+
     if (event.isKeyPressed(LogicalKeyboardKey.space)) {
       togglePaused();
+    }
+
+    if (event.isKeyPressed(LogicalKeyboardKey.arrowRight)) {
+      selectNextPlanet();
+    }
+    if (event.isKeyPressed(LogicalKeyboardKey.arrowLeft)) {
+      selectPreviousPlanet();
     }
   }
 
@@ -135,6 +202,8 @@ class _GameEngineState extends State<GameEngine> {
       painter: _customPainter,
     );
 
+    double MaxMass = 200;
+
     return RawKeyboardListener(
       focusNode: _keyboardFocusNode,
       onKey: (key) {
@@ -142,17 +211,27 @@ class _GameEngineState extends State<GameEngine> {
       },
       child: Scaffold(
         appBar: AppBar(
-//          title: GestureDetector(onTap: initialize, child: Text("Reset")),
           actions: [
             IconButton(
               icon: Icon(Icons.refresh),
               onPressed: initialize,
             ),
-            if (game != null)
+            if (universe.planets.length > 1)
+              IconButton(
+                icon: Icon(Icons.navigate_next),
+                onPressed: selectNextPlanet,
+              ),
+            IconButton(
+              icon: Icon(cameraTracking ? Icons.track_changes : Icons.clear),
+              onPressed: (){
+                cameraTracking = !cameraTracking;
+              },
+            ),
+            if (universe != null)
               Checkbox(
-                value: !game.bounded,
+                value: !universe.bounded,
                 onChanged: (value) {
-                  game.bounded = !value;
+                  universe.bounded = !value;
                 },
                 activeColor: mat.Colors.orange,
                 checkColor: mat.Colors.black,
@@ -161,13 +240,13 @@ class _GameEngineState extends State<GameEngine> {
               Container(
                 width: 200,
                 child: Slider(
-                  value: selectedPlanet.mass,
+                  value: selectedPlanet.mass > MaxMass ? MaxMass : selectedPlanet.mass,
                   onChanged: (value) {
                     selectedPlanet.mass = value;
                   },
                   min: 0.1,
-                  max: 100,
-                  label: "Mass",
+                  max: MaxMass,
+                  label: "Mass ${selectedPlanet.mass}",
                   activeColor: mat.Colors.black,
                   inactiveColor: mat.Colors.white,
                 ),
@@ -180,13 +259,12 @@ class _GameEngineState extends State<GameEngine> {
         ),
         body: PositionedTapDetector(
           onTap: (position) {
-
             print("Click x:${position.relative.dx}, y:${position.relative.dy}");
 
             double mass = 1;
             Vector2 wPos = convertScreenToWorldPosition(
                 position.relative.dx, position.relative.dy);
-            game.add(wPos, mass);
+            universe.add(wPos, mass);
           },
           child: Listener(
             onPointerSignal: (pointerSignal) {
@@ -229,6 +307,12 @@ Paint circlePaint = Paint()
   ..style = PaintingStyle.fill
   ..strokeWidth = 1;
 
+Paint selectedPlanetPaint = Paint()
+  ..color = mat.Colors.orange
+  ..strokeCap = StrokeCap.round
+  ..style = PaintingStyle.fill
+  ..strokeWidth = 1;
+
 Paint linePaint = Paint()
   ..color = mat.Colors.white
   ..strokeCap = StrokeCap.round
@@ -241,10 +325,11 @@ Paint borderPaint = Paint()
   ..style = PaintingStyle.fill
   ..strokeWidth = 2;
 
-Universe game;
+Universe universe;
 Vector3 camera = Vector3(0, 0, 1);
 double scrollSensitivity = 0.02;
 Vector2 zero = Vector2.zero();
+bool cameraTracking = true;
 
 double get zoom => camera.z;
 Planet selectedPlanet;
@@ -276,7 +361,12 @@ class EnginePainter extends CustomPainter {
     double transX = camera.x / zoom;
     double transY = camera.y / zoom;
 
-    game.planets.forEach((planet) {
+    if (selectedPlanet != null) {
+      canvas.drawCircle(convertWorldToScreenPosition(selectedPlanet.position),
+          selectedPlanet.radius * 2 / zoom, selectedPlanetPaint);
+    }
+
+    universe.planets.forEach((planet) {
       canvas.drawCircle(
           Offset((planet.position.x - transX) / zoom,
               (planet.position.y - transY) / zoom),
@@ -292,11 +382,11 @@ class EnginePainter extends CustomPainter {
       }
     });
 
-    if (game.bounded) {
-      Offset topLeft =
-          convertWorldToScreenPosition(Vector2(game.leftBound, game.topBound));
+    if (universe.bounded) {
+      Offset topLeft = convertWorldToScreenPosition(
+          Vector2(universe.leftBound, universe.topBound));
       Offset bottomRight = convertWorldToScreenPosition(
-          Vector2(game.rightRound, game.bottomBound));
+          Vector2(universe.rightRound, universe.bottomBound));
       Offset topRight = Offset(bottomRight.dx, topLeft.dy);
       Offset bottomLeft = Offset(topLeft.dx, bottomRight.dy);
 
@@ -305,8 +395,6 @@ class EnginePainter extends CustomPainter {
       canvas.drawLine(topRight, bottomRight, borderPaint);
       canvas.drawLine(bottomLeft, bottomRight, borderPaint);
     }
-
-    Offset gridCenter = convertWorldToScreenPosition(zero);
   }
 
   @override
