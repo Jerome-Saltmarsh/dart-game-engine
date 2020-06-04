@@ -20,13 +20,18 @@ class Planet {
 
   Vector2 get momentum => velocity * mass;
 
-  double get radius => sqrt(mass / pi) * Game.density;
+  double get radius => sqrt(mass / pi) / Universe.density;
 }
 
-class Game {
+class Universe {
   List<Planet> planets = [];
-  static double density = 1;
+  static double density = 0.35;
   bool paused = false;
+
+  double leftBound = 0;
+  double rightRound = 300;
+  double topBound = 0;
+  double bottomBound = 300;
 
   void update() {
     if (paused) {
@@ -45,6 +50,21 @@ class Game {
       planet.previousDestination = planet.nextDestination;
     });
 
+    planets.forEach((planet) {
+
+      if (planet.position.x > planet.radius + rightRound) {
+        planet.velocity.x = -planet.velocity.x;
+      }else if (planet.position.x < planet.radius - leftBound) {
+        planet.velocity.x = -planet.velocity.x;
+      }
+
+      if (planet.position.y > planet.radius + bottomBound) {
+        planet.velocity.y = -planet.velocity.y;
+      }else if (planet.position.y < planet.radius - topBound) {
+        planet.velocity.y = -planet.velocity.y;
+      }
+    });
+
     // check for collisions
     for (int i = 0; i < planets.length; i++) {
       for (int j = i + 1; j < planets.length; j++) {
@@ -61,6 +81,11 @@ class Game {
         }
       }
     }
+  }
+
+  void togglePaused() {
+    paused = !paused;
+    print("Game.paused = $paused");
   }
 
   Vector2 calculateSpacialShift(Vector2 position, Planet planet) {
@@ -99,11 +124,11 @@ class Game {
     return planet;
   }
 
-  double convertMassToRadius(double mass) {
-    return sqrt(mass / pi) * density;
-  }
-
-  double convertRadiusToMass(double radius) {
-    return (pi * radius * radius) / density;
-  }
+//  double convertMassToRadius(double mass) {
+//    return sqrt(mass / pi) / density;
+//  }
+//
+//  double convertRadiusToMass(double radius) {
+//    return (pi * radius * radius) * density;
+//  }
 }
