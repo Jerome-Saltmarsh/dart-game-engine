@@ -10,6 +10,7 @@ class Planet {
   Vector2 previousDestination;
   Vector2 velocity;
   double mass;
+  double density = 0.2;
 
   Queue<Vector2> positionHistory = Queue();
 
@@ -23,24 +24,20 @@ class Planet {
 
   Vector2 get momentum => velocity * mass;
 
-  double get radius => sqrt(mass / pi) / Universe.density;
+  double get radius => sqrt(mass / pi) / density;
 }
 
 class Universe {
   List<Planet> planets = [];
-  static double density = 0.35;
-  bool paused = false;
 
   double leftBound = 0;
   double rightRound = 300;
   double topBound = 0;
   double bottomBound = 300;
+  bool bounded = true;
+  int tailLength = 15;
 
   void update() {
-    if (paused) {
-      return;
-    }
-
     planets.forEach((planet) {
       planet.nextDestination = planet.position + planet.velocity;
       planet.shiftedDestination =
@@ -53,25 +50,26 @@ class Universe {
       planet.previousDestination = planet.nextDestination;
       planet.positionHistory.add(planet.position);
 
-      if(planet.positionHistory.length > 15){
+      if (planet.positionHistory.length > tailLength) {
         planet.positionHistory.removeFirst();
       }
     });
 
-    planets.forEach((planet) {
+    if (bounded) {
+      planets.forEach((planet) {
+        if (planet.position.x > rightRound - planet.radius) {
+          planet.velocity.x = -planet.velocity.x;
+        } else if (planet.position.x < planet.radius - leftBound) {
+          planet.velocity.x = -planet.velocity.x;
+        }
 
-      if (planet.position.x > rightRound - planet.radius) {
-        planet.velocity.x = -planet.velocity.x;
-      }else if (planet.position.x < planet.radius - leftBound) {
-        planet.velocity.x = -planet.velocity.x;
-      }
-
-      if (planet.position.y >  bottomBound - planet.radius) {
-        planet.velocity.y = -planet.velocity.y;
-      }else if (planet.position.y < planet.radius - topBound) {
-        planet.velocity.y = -planet.velocity.y;
-      }
-    });
+        if (planet.position.y > bottomBound - planet.radius) {
+          planet.velocity.y = -planet.velocity.y;
+        } else if (planet.position.y < planet.radius - topBound) {
+          planet.velocity.y = -planet.velocity.y;
+        }
+      });
+    }
 
     // check for collisions
     for (int i = 0; i < planets.length; i++) {
@@ -91,52 +89,40 @@ class Universe {
     }
   }
 
-  void togglePaused() {
-    paused = !paused;
-    print("Game.paused = $paused");
-  }
-
   Vector2 calculateSpacialShift(Vector2 position, Planet planet) {
     Vector2 shiftedPosition = position;
-
     for (int i = 0; i < planets.length; i++) {
       if (planet == planets[i]) {
         continue;
       }
-
       shiftedPosition += calculateTranslation(position, planets[i]);
     }
-
     return shiftedPosition;
   }
 
   Vector2 calculateTranslation(Vector2 position, Planet planet) {
     double distance = planet.position.distanceTo(position);
-    double speed = distance - calculatePull(distance, planet.radius);
+    double speed =
+        distance - calculatePull(distance, planet.radius, planet.mass);
     Vector2 translation = planet.position - position;
     translation.length = speed;
     return translation;
   }
 
-  double calculatePull(double distance, double radius) {
-    double value = sqrt((distance * distance) - (radius * radius));
+  double calculatePull(double distance, double radius, double mass) {
+    double value = sqrt((distance * distance) - mass);
     if (value.isNaN) {
       return 0;
     }
     return value;
   }
 
-  Planet add(Vector2 position, double mass, {Vector2 velocity}) {
-    Planet planet = Planet(position, mass, velocity);
+  Planet add(Vector2 position, double mass) {
+    if (mass < 0.5) {
+      mass = 0.5;
+    }
+    Planet planet = Planet(position, mass, Vector2.zero());
     planets.add(planet);
     return planet;
   }
-
-//  double convertMassToRadius(double mass) {
-//    return sqrt(mass / pi) / density;
-//  }
-//
-//  double convertRadiusToMass(double radius) {
-//    return (pi * radius * radius) * density;
-//  }
 }

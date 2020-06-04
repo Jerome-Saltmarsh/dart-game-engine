@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -19,18 +20,25 @@ class GameEngine extends StatefulWidget {
 }
 
 class _GameEngineState extends State<GameEngine> {
-  CustomPainter customPainter;
-  CustomPaint customPaint;
+  // public
   StreamController<RawKeyEvent> onKeyPressed = StreamController<RawKeyEvent>();
-  FocusNode _keyboardFocusNode = FocusNode();
-  bool initialized = false;
-  Size screenSize;
+
+  // private
+  bool _initialized = false;
+  bool _paused = false;
+  Size _screenSize;
+  CustomPainter _customPainter;
+  CustomPaint _customPaint;
+  FocusNode _keyboardFocusNode;
+  double appBarHeight = 70;
+  Random random = Random();
 
   @override
   void initState() {
     Timer.periodic(Duration(milliseconds: 1000 ~/ widget.fps), (timer) {
       fixedUpdate();
     });
+    _keyboardFocusNode = FocusNode();
     onKeyPressed.stream.listen(onKeyEvent);
     super.initState();
   }
@@ -43,21 +51,50 @@ class _GameEngineState extends State<GameEngine> {
 
   void initialize() {
     game = Universe();
-    game.add(Vector2(50, 50), 1, velocity: Vector2.zero());
-    game.add(Vector2(200, 50), 2, velocity: Vector2.zero());
-    game.add(Vector2(150, 200), 3, velocity: Vector2.zero());
     camera = Vector3(0, 0, 1);
-    game.rightRound = screenSize.width;
-    game.bottomBound = screenSize.height;
+    game.rightRound = _screenSize.width - 10;
+    game.bottomBound = _screenSize.height - appBarHeight;
+    for (int i = 0; i < 10; i++) {
+      spawnRandomPlanet();
+    }
+  }
+
+  void spawnRandomPlanet() {
+    double mass = random.nextDouble() * 5;
+
+    double rValue(double max) {
+      double v = random.nextDouble() * max;
+      if (random.nextBool()) {
+        return -v;
+      }
+      return v;
+    }
+
+    Vector2 velocity = Vector2(rValue(2), rValue(2));
+    Planet planet = game.add(getRandomPosition(), mass);
+    planet.velocity = velocity;
+  }
+
+  Vector2 getRandomPosition() {
+    double padding = 20;
+    return Vector2(padding + random.nextDouble() * (game.rightRound - padding),
+        padding + (random.nextDouble() * (game.bottomBound - padding)));
   }
 
   void fixedUpdate() {
-    game.update();
+    if (!_paused) {
+      game.update();
+    }
     setState(doNothing);
   }
 
   void doNothing() {
     // prevents creating a new lambda each frame.
+  }
+
+  void togglePaused() {
+    _paused = !_paused;
+    print("Game.paused = $_paused");
   }
 
   void onKeyEvent(RawKeyEvent event) {
@@ -76,27 +113,26 @@ class _GameEngineState extends State<GameEngine> {
       camera.y += speed;
     }
     if (event.isKeyPressed(LogicalKeyboardKey.space)) {
-      game.togglePaused();
+      togglePaused();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    screenSize = MediaQuery.of(context).size;
+    _screenSize = MediaQuery.of(context).size;
 
-    if (!initialized) {
-      initialized = true;
+    if (!_initialized) {
+      _initialized = true;
       initialize();
     }
     if (!_keyboardFocusNode.hasFocus) {
       FocusScope.of(context).requestFocus(_keyboardFocusNode);
     }
 
-    Size size = MediaQuery.of(context).size;
-    customPainter = DrawCircle();
-    customPaint = CustomPaint(
-      size: size,
-      painter: customPainter,
+    _customPainter = EnginePainter();
+    _customPaint = CustomPaint(
+      size: _screenSize,
+      painter: _customPainter,
     );
 
     return RawKeyboardListener(
@@ -106,26 +142,58 @@ class _GameEngineState extends State<GameEngine> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: GestureDetector(onTap: initialize, child: Text("Reset")),
+//          title: GestureDetector(onTap: initialize, child: Text("Reset")),
           actions: [
             IconButton(
-              icon: Icon(game.paused ? Icons.play_arrow : Icons.pause),
-              onPressed: game.togglePaused,
+              icon: Icon(Icons.refresh),
+              onPressed: initialize,
+            ),
+            if (game != null)
+              Checkbox(
+                value: !game.bounded,
+                onChanged: (value) {
+                  game.bounded = !value;
+                },
+                activeColor: mat.Colors.orange,
+                checkColor: mat.Colors.black,
+              ),
+            if (selectedPlanet != null)
+              Container(
+                width: 200,
+                child: Slider(
+                  value: selectedPlanet.mass,
+                  onChanged: (value) {
+                    selectedPlanet.mass = value;
+                  },
+                  min: 0.1,
+                  max: 100,
+                  label: "Mass",
+                  activeColor: mat.Colors.black,
+                  inactiveColor: mat.Colors.white,
+                ),
+              ),
+            IconButton(
+              icon: Icon(_paused ? Icons.play_arrow : Icons.pause),
+              onPressed: togglePaused,
             )
           ],
         ),
         body: PositionedTapDetector(
           onTap: (position) {
+
+            print("Click x:${position.relative.dx}, y:${position.relative.dy}");
+
             double mass = 1;
             Vector2 wPos = convertScreenToWorldPosition(
                 position.relative.dx, position.relative.dy);
-            game.add(wPos, mass, velocity: Vector2.zero());
+            game.add(wPos, mass);
           },
           child: Listener(
             onPointerSignal: (pointerSignal) {
               if (pointerSignal is PointerScrollEvent) {
                 double scroll = pointerSignal.scrollDelta.dy;
-                zoom += (scroll * 0.01) * (zoom * 0.01);
+                zoom +=
+                    (scroll * scrollSensitivity) * (zoom * scrollSensitivity);
 //
 //              Offset _getWidgetTopLeft() {
 //                final translation =
@@ -144,16 +212,12 @@ class _GameEngineState extends State<GameEngine> {
             },
             child: Container(
               color: mat.Colors.black,
-              width: size.width,
-              height: size.height,
-              child: customPaint,
+              width: _screenSize.width,
+              height: _screenSize.height,
+              child: _customPaint,
             ),
           ),
         ),
-//        floatingActionButton: FloatingActionButton(
-//          onPressed: game.togglePaused,
-//          child: Icon(game.paused ? Icons.play_arrow : Icons.pause),
-//        ), // This trailing comma makes auto-formatting nicer for build methods.
       ),
     );
   }
@@ -179,12 +243,17 @@ Paint borderPaint = Paint()
 
 Universe game;
 Vector3 camera = Vector3(0, 0, 1);
+double scrollSensitivity = 0.02;
+Vector2 zero = Vector2.zero();
 
 double get zoom => camera.z;
+Planet selectedPlanet;
+
+double minZoom = 0.005;
 
 set zoom(double value) {
-  if (value < 0.1) {
-    value = 0.1;
+  if (value < minZoom) {
+    value = minZoom;
   }
   camera.z = value;
 }
@@ -196,12 +265,12 @@ Offset convertWorldToScreenPosition(Vector2 position) {
 }
 
 Vector2 convertScreenToWorldPosition(double x, double y) {
-  double transX = camera.x * zoom;
-  double transY = camera.y * zoom;
-  return Vector2((x - transX) * zoom, (y - transY) * zoom);
+  Vector2 screenPosition = Vector2(x, y);
+  Vector2 cameraPosition = Vector2(camera.x, camera.y);
+  return (screenPosition * zoom) + (cameraPosition / zoom);
 }
 
-class DrawCircle extends CustomPainter {
+class EnginePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     double transX = camera.x / zoom;
@@ -217,22 +286,27 @@ class DrawCircle extends CustomPainter {
       for (int i = 0; i < planet.positionHistory.length - 1; i++) {
         canvas.drawLine(
             convertWorldToScreenPosition(planet.positionHistory.elementAt(i)),
-            convertWorldToScreenPosition(planet.positionHistory.elementAt(i + 1)),
+            convertWorldToScreenPosition(
+                planet.positionHistory.elementAt(i + 1)),
             linePaint);
       }
     });
 
-    Offset topLeft =
-        convertWorldToScreenPosition(Vector2(game.leftBound, game.topBound));
-    Offset bottomRight = convertWorldToScreenPosition(
-        Vector2(game.rightRound, game.bottomBound));
-    Offset topRight = Offset(bottomRight.dx, topLeft.dy);
-    Offset bottomLeft = Offset(topLeft.dx, bottomRight.dy);
+    if (game.bounded) {
+      Offset topLeft =
+          convertWorldToScreenPosition(Vector2(game.leftBound, game.topBound));
+      Offset bottomRight = convertWorldToScreenPosition(
+          Vector2(game.rightRound, game.bottomBound));
+      Offset topRight = Offset(bottomRight.dx, topLeft.dy);
+      Offset bottomLeft = Offset(topLeft.dx, bottomRight.dy);
 
-    canvas.drawLine(topLeft, bottomLeft, borderPaint);
-    canvas.drawLine(topLeft, topRight, borderPaint);
-    canvas.drawLine(topRight, bottomRight, borderPaint);
-    canvas.drawLine(bottomLeft, bottomRight, borderPaint);
+      canvas.drawLine(topLeft, bottomLeft, borderPaint);
+      canvas.drawLine(topLeft, topRight, borderPaint);
+      canvas.drawLine(topRight, bottomRight, borderPaint);
+      canvas.drawLine(bottomLeft, bottomRight, borderPaint);
+    }
+
+    Offset gridCenter = convertWorldToScreenPosition(zero);
   }
 
   @override
