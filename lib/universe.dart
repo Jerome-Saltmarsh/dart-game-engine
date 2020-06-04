@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:math';
 
 import 'package:vector_math/vector_math_64.dart';
@@ -9,6 +10,8 @@ class Planet {
   Vector2 previousDestination;
   Vector2 velocity;
   double mass;
+
+  Queue<Vector2> positionHistory = Queue();
 
   Planet(this.position, this.mass, this.velocity) {
     previousDestination = position - velocity;
@@ -48,17 +51,22 @@ class Universe {
       planet.position = planet.shiftedDestination;
       planet.velocity = planet.position - planet.previousDestination;
       planet.previousDestination = planet.nextDestination;
+      planet.positionHistory.add(planet.position);
+
+      if(planet.positionHistory.length > 15){
+        planet.positionHistory.removeFirst();
+      }
     });
 
     planets.forEach((planet) {
 
-      if (planet.position.x > planet.radius + rightRound) {
+      if (planet.position.x > rightRound - planet.radius) {
         planet.velocity.x = -planet.velocity.x;
       }else if (planet.position.x < planet.radius - leftBound) {
         planet.velocity.x = -planet.velocity.x;
       }
 
-      if (planet.position.y > planet.radius + bottomBound) {
+      if (planet.position.y >  bottomBound - planet.radius) {
         planet.velocity.y = -planet.velocity.y;
       }else if (planet.position.y < planet.radius - topBound) {
         planet.velocity.y = -planet.velocity.y;

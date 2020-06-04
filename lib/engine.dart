@@ -107,11 +107,18 @@ class _GameEngineState extends State<GameEngine> {
       child: Scaffold(
         appBar: AppBar(
           title: GestureDetector(onTap: initialize, child: Text("Reset")),
+          actions: [
+            IconButton(
+              icon: Icon(game.paused ? Icons.play_arrow : Icons.pause),
+              onPressed: game.togglePaused,
+            )
+          ],
         ),
         body: PositionedTapDetector(
           onTap: (position) {
             double mass = 1;
-            Vector2 wPos = convertScreenToWorldPosition(position.relative.dx, position.relative.dy);
+            Vector2 wPos = convertScreenToWorldPosition(
+                position.relative.dx, position.relative.dy);
             game.add(wPos, mass, velocity: Vector2.zero());
           },
           child: Listener(
@@ -143,16 +150,22 @@ class _GameEngineState extends State<GameEngine> {
             ),
           ),
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: game.togglePaused,
-          child: Icon(game.paused ? Icons.play_arrow : Icons.pause),
-        ), // This trailing comma makes auto-formatting nicer for build methods.
+//        floatingActionButton: FloatingActionButton(
+//          onPressed: game.togglePaused,
+//          child: Icon(game.paused ? Icons.play_arrow : Icons.pause),
+//        ), // This trailing comma makes auto-formatting nicer for build methods.
       ),
     );
   }
 }
 
 Paint circlePaint = Paint()
+  ..color = mat.Colors.white
+  ..strokeCap = StrokeCap.round
+  ..style = PaintingStyle.fill
+  ..strokeWidth = 1;
+
+Paint linePaint = Paint()
   ..color = mat.Colors.white
   ..strokeCap = StrokeCap.round
   ..style = PaintingStyle.fill
@@ -176,16 +189,16 @@ set zoom(double value) {
   camera.z = value;
 }
 
-Offset convertWorldToScreenPosition(Vector2 position){
+Offset convertWorldToScreenPosition(Vector2 position) {
   double transX = camera.x / zoom;
   double transY = camera.y / zoom;
-  return  Offset((position.x - transX) / zoom, (position.y - transY) / zoom);
+  return Offset((position.x - transX) / zoom, (position.y - transY) / zoom);
 }
 
-Vector2 convertScreenToWorldPosition(double x, double y){
+Vector2 convertScreenToWorldPosition(double x, double y) {
   double transX = camera.x * zoom;
   double transY = camera.y * zoom;
-  return  Vector2((x - transX) * zoom, (y - transY) * zoom);
+  return Vector2((x - transX) * zoom, (y - transY) * zoom);
 }
 
 class DrawCircle extends CustomPainter {
@@ -200,10 +213,19 @@ class DrawCircle extends CustomPainter {
               (planet.position.y - transY) / zoom),
           planet.radius / zoom,
           circlePaint);
+
+      for (int i = 0; i < planet.positionHistory.length - 1; i++) {
+        canvas.drawLine(
+            convertWorldToScreenPosition(planet.positionHistory.elementAt(i)),
+            convertWorldToScreenPosition(planet.positionHistory.elementAt(i + 1)),
+            linePaint);
+      }
     });
 
-    Offset topLeft = convertWorldToScreenPosition(Vector2(game.leftBound, game.topBound));
-    Offset bottomRight = convertWorldToScreenPosition(Vector2(game.rightRound, game.bottomBound));
+    Offset topLeft =
+        convertWorldToScreenPosition(Vector2(game.leftBound, game.topBound));
+    Offset bottomRight = convertWorldToScreenPosition(
+        Vector2(game.rightRound, game.bottomBound));
     Offset topRight = Offset(bottomRight.dx, topLeft.dy);
     Offset bottomLeft = Offset(topLeft.dx, bottomRight.dy);
 
