@@ -24,6 +24,7 @@ class GameEngine extends StatefulWidget {
 class _GameEngineState extends State<GameEngine> {
   // public
   StreamController<RawKeyEvent> onKeyPressed = StreamController<RawKeyEvent>();
+  StreamController<Offset> onMouseClicked = StreamController<Offset>();
 
   // private
   bool _initialized = false;
@@ -42,6 +43,7 @@ class _GameEngineState extends State<GameEngine> {
     });
     _keyboardFocusNode = FocusNode();
     onKeyPressed.stream.listen(handleKeyPressed);
+    onMouseClicked.stream.listen(handleMouseClicked);
     super.initState();
   }
 
@@ -70,6 +72,7 @@ class _GameEngineState extends State<GameEngine> {
   @override
   void dispose() {
     onKeyPressed.close();
+    onMouseClicked.close();
     universe.dispose();
     super.dispose();
   }
@@ -159,6 +162,16 @@ class _GameEngineState extends State<GameEngine> {
     print("Game.paused = $_paused");
   }
 
+  bool isPressed(LogicalKeyboardKey key){
+    return RawKeyboard.instance.keysPressed.contains(key);
+  }
+
+  void handleMouseClicked(Offset offset){
+    double mass = 1;
+    Vector2 wPos = convertScreenToWorldPosition(offset.dx, offset.dy);
+    universe.add(wPos, mass);
+  }
+
   void handleKeyPressed(RawKeyEvent event) {
     if (!cameraTracking) {
       double speed = 10 * zoom;
@@ -233,10 +246,7 @@ class _GameEngineState extends State<GameEngine> {
         appBar: buildAppBar(context),
         body: PositionedTapDetector(
           onTap: (position) {
-            double mass = 1;
-            Vector2 wPos = convertScreenToWorldPosition(
-                position.relative.dx, position.relative.dy);
-            universe.add(wPos, mass);
+            onMouseClicked.add(position.relative);
           },
           child: Listener(
             onPointerSignal: (pointerSignal) {
