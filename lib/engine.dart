@@ -22,9 +22,11 @@ class GameEngine extends StatefulWidget {
 }
 
 class _GameEngineState extends State<GameEngine> {
+
   // public
   StreamController<RawKeyEvent> onKeyPressed = StreamController<RawKeyEvent>();
   StreamController<Offset> onMouseClicked = StreamController<Offset>();
+  StreamController<PointerSignalEvent> onPointerSignalEvent = StreamController<PointerSignalEvent>();
 
   // private
   bool _initialized = false;
@@ -36,6 +38,19 @@ class _GameEngineState extends State<GameEngine> {
   double appBarHeight = 70;
   Random random = Random();
 
+  void handlePointerSignalEvent(PointerSignalEvent pointerSignalEvent) {
+    if (pointerSignalEvent is PointerScrollEvent) {
+      double scroll = pointerSignalEvent.scrollDelta.dy;
+      zoom += (scroll * scrollSensitivity) * (zoom * scrollSensitivity);
+      centerCamera(selectedPlanet.position, smooth: 1);
+    }
+    if(pointerSignalEvent is PointerMoveEvent){
+      mousePosition = pointerSignalEvent.position;
+      mouseDelta = pointerSignalEvent.delta;
+      print("Mouse moved ${mousePosition}");
+    }
+  }
+
   @override
   void initState() {
     Timer.periodic(Duration(milliseconds: 1000 ~/ widget.fps), (timer) {
@@ -44,6 +59,7 @@ class _GameEngineState extends State<GameEngine> {
     _keyboardFocusNode = FocusNode();
     onKeyPressed.stream.listen(handleKeyPressed);
     onMouseClicked.stream.listen(handleMouseClicked);
+    onPointerSignalEvent.stream.listen(handlePointerSignalEvent);
     super.initState();
   }
 
@@ -73,6 +89,8 @@ class _GameEngineState extends State<GameEngine> {
   void dispose() {
     onKeyPressed.close();
     onMouseClicked.close();
+    onPointerSignalEvent.close();
+//    onMouseScroll.close();
     universe.dispose();
     super.dispose();
   }
@@ -123,27 +141,20 @@ class _GameEngineState extends State<GameEngine> {
   }
 
   void fixedUpdate() {
-    if (cameraTracking && selectedPlanet != null) {
-      centerCamera(selectedPlanet.position);
+    if (_paused) {
+      return;
     }
-
-    if (!_paused) {
-      universe.update();
-    }
+    updateCamera();
+    universe.update();
     setState(doNothing);
   }
 
-  void trackAllPlanets() {
-    //    double x = 0;
-//    double y = 0;
-//
-//    universe.planets.forEach((element) {
-//      x += element.position.x;
-//      y += element.position.y;
-//    });
-//
-//    x /= universe.planets.length;
-//    y /= universe.planets.length;
+  void updateCamera() {
+    if (cameraTracking && selectedPlanet != null) {
+      if (!isPressed(LogicalKeyboardKey.shiftLeft)) {
+        centerCamera(selectedPlanet.position);
+      }
+    }
   }
 
   void centerCamera(Vector2 worldPosition, {double smooth = 0.1}) {
@@ -162,11 +173,7 @@ class _GameEngineState extends State<GameEngine> {
     print("Game.paused = $_paused");
   }
 
-  bool isPressed(LogicalKeyboardKey key){
-    return RawKeyboard.instance.keysPressed.contains(key);
-  }
-
-  void handleMouseClicked(Offset offset){
+  void handleMouseClicked(Offset offset) {
     double mass = 1;
     Vector2 wPos = convertScreenToWorldPosition(offset.dx, offset.dy);
     universe.add(wPos, mass);
@@ -244,25 +251,30 @@ class _GameEngineState extends State<GameEngine> {
       },
       child: Scaffold(
         appBar: buildAppBar(context),
-        body: PositionedTapDetector(
-          onTap: (position) {
-            onMouseClicked.add(position.relative);
+        body: buildBody(context),
+      ),
+    );
+  }
+
+  Widget buildBody(BuildContext context) {
+    return MouseRegion(
+      onHover: (pointerHoverEvent) {
+//        mousePosition = pointerHoverEvent.position;
+//        mouseDelta = pointerHoverEvent.delta;
+      },
+      child: PositionedTapDetector(
+        onTap: (position) {
+          onMouseClicked.add(position.relative);
+        },
+        child: Listener(
+          onPointerSignal: (pointerSignal) {
+            onPointerSignalEvent.add(pointerSignal);
           },
-          child: Listener(
-            onPointerSignal: (pointerSignal) {
-              if (pointerSignal is PointerScrollEvent) {
-                double scroll = pointerSignal.scrollDelta.dy;
-                zoom +=
-                    (scroll * scrollSensitivity) * (zoom * scrollSensitivity);
-                centerCamera(selectedPlanet.position, smooth: 1);
-              }
-            },
-            child: Container(
-              color: mat.Colors.black,
-              width: _screenSize.width,
-              height: _screenSize.height,
-              child: _customPaint,
-            ),
+          child: Container(
+            color: mat.Colors.black,
+            width: _screenSize.width,
+            height: _screenSize.height,
+            child: _customPaint,
           ),
         ),
       ),
@@ -359,12 +371,24 @@ Paint borderPaint = Paint()
 double maxMass = 1000;
 Universe universe;
 Vector2 camera = Vector2(0, 0);
+Offset mousePosition;
+Offset mouseDelta;
 double scrollSensitivity = 0.02;
 Vector2 zero = Vector2.zero();
 double cameraZ = 1;
 bool cameraTracking = true;
 
+bool get doTrack {
+  return selectedPlanet != null &&
+      cameraTracking &&
+      !isPressed(LogicalKeyboardKey.shiftLeft);
+}
+
 double get zoom => cameraZ;
+
+bool isPressed(LogicalKeyboardKey key) {
+  return RawKeyboard.instance.keysPressed.contains(key);
+}
 
 set zoom(double value) {
   if (value < minZoom) {
