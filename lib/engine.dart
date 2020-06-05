@@ -10,7 +10,6 @@ import 'package:positioned_tap_detector/positioned_tap_detector.dart';
 import 'package:vector_math/vector_math_64.dart';
 
 // StarField
-// Fix Camera Track
 // Display Mass Text
 class GameEngine extends StatefulWidget {
   /// Frames Per Second
@@ -42,7 +41,7 @@ class _GameEngineState extends State<GameEngine> {
       fixedUpdate();
     });
     _keyboardFocusNode = FocusNode();
-    onKeyPressed.stream.listen(onKeyEvent);
+    onKeyPressed.stream.listen(handleKeyPressed);
     super.initState();
   }
 
@@ -78,7 +77,7 @@ class _GameEngineState extends State<GameEngine> {
   void initialize() {
     if (universe == null) {
       universe = Universe();
-      universe.onPlanetDestroyed.stream.listen(onCollision);
+      universe.onPlanetDestroyed.stream.listen(handleCollision);
     }
     universe.planets.clear();
     camera = Vector2(0, 0);
@@ -91,7 +90,7 @@ class _GameEngineState extends State<GameEngine> {
     selectedPlanet = universe.planets[0];
   }
 
-  void onCollision(PlanetCollision event) {
+  void handleCollision(PlanetCollision event) {
     if (selectedPlanet == event.target) {
       selectedPlanet = event.source;
     }
@@ -145,7 +144,8 @@ class _GameEngineState extends State<GameEngine> {
   }
 
   void centerCamera(Vector2 worldPosition, {double smooth = 0.1}) {
-    Vector2 centerWorldPosition = convertScreenToWorldPosition(_screenSize.width * 0.5, _screenSize.height * 0.5);
+    Vector2 centerWorldPosition = convertScreenToWorldPosition(
+        _screenSize.width * 0.5, _screenSize.height * 0.5);
     Vector2 translation = worldPosition - centerWorldPosition;
     camera += (translation * zoom * smooth);
   }
@@ -159,7 +159,7 @@ class _GameEngineState extends State<GameEngine> {
     print("Game.paused = $_paused");
   }
 
-  void onKeyEvent(RawKeyEvent event) {
+  void handleKeyPressed(RawKeyEvent event) {
     if (!cameraTracking) {
       double speed = 10 * zoom;
       if (event.isKeyPressed(LogicalKeyboardKey.keyA)) {
@@ -173,6 +173,24 @@ class _GameEngineState extends State<GameEngine> {
       }
       if (event.isKeyPressed(LogicalKeyboardKey.keyS)) {
         camera.y += speed;
+      }
+    } else if (selectedPlanet != null) {
+      double acceleration = 0.5;
+
+      if (event.isKeyPressed(LogicalKeyboardKey.keyQ)) {
+        selectedPlanet.velocity = zero;
+      }
+      if (event.isKeyPressed(LogicalKeyboardKey.keyA)) {
+        selectedPlanet.velocity.x -= acceleration;
+      }
+      if (event.isKeyPressed(LogicalKeyboardKey.keyW)) {
+        selectedPlanet.velocity.y -= acceleration;
+      }
+      if (event.isKeyPressed(LogicalKeyboardKey.keyD)) {
+        selectedPlanet.velocity.x += acceleration;
+      }
+      if (event.isKeyPressed(LogicalKeyboardKey.keyS)) {
+        selectedPlanet.velocity.y += acceleration;
       }
     }
 
@@ -241,13 +259,9 @@ class _GameEngineState extends State<GameEngine> {
     );
   }
 
-  Widget buildAppBar(BuildContext context){
+  Widget buildAppBar(BuildContext context) {
     return AppBar(
       actions: [
-        IconButton(
-          icon: Icon(Icons.refresh),
-          onPressed: initialize,
-        ),
         if (universe.planets.length > 1)
           IconButton(
             icon: Icon(Icons.navigate_next),
@@ -269,22 +283,36 @@ class _GameEngineState extends State<GameEngine> {
             checkColor: mat.Colors.black,
           ),
         if (selectedPlanet != null)
-          Container(
-            width: 200,
-            child: Slider(
-              value: selectedPlanet.mass > maxMass
-                  ? maxMass
-                  : selectedPlanet.mass,
-              onChanged: (value) {
-                selectedPlanet.mass = value;
-              },
-              min: 0.1,
-              max: maxMass,
-              label: "Mass ${selectedPlanet.mass}",
-              activeColor: mat.Colors.black,
-              inactiveColor: mat.Colors.white,
-            ),
+          Row(
+            children: [
+              Text(
+                "Mass: ${selectedPlanet.mass.roundToDouble()}",
+              ),
+              Container(
+                width: 200,
+                child: Slider(
+                  value: selectedPlanet.mass > maxMass
+                      ? maxMass
+                      : selectedPlanet.mass,
+                  onChanged: (value) {
+                    selectedPlanet.mass = value;
+                  },
+                  min: 0.1,
+                  max: maxMass,
+                  label: "Mass ${selectedPlanet.mass.round()}",
+                  activeColor: mat.Colors.black,
+                  inactiveColor: mat.Colors.white,
+                ),
+              ),
+            ],
           ),
+        SizedBox(
+          width: 10,
+        ),
+        IconButton(
+          icon: Icon(Icons.refresh),
+          onPressed: initialize,
+        ),
         IconButton(
           icon: Icon(_paused ? Icons.play_arrow : Icons.pause),
           onPressed: togglePaused,
@@ -318,7 +346,7 @@ Paint borderPaint = Paint()
   ..style = PaintingStyle.fill
   ..strokeWidth = 2;
 
-double maxMass = 200;
+double maxMass = 1000;
 Universe universe;
 Vector2 camera = Vector2(0, 0);
 double scrollSensitivity = 0.02;
