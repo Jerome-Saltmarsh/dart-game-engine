@@ -22,11 +22,12 @@ class GameEngine extends StatefulWidget {
 }
 
 class _GameEngineState extends State<GameEngine> {
-
   // public
   StreamController<RawKeyEvent> onKeyPressed = StreamController<RawKeyEvent>();
   StreamController<Offset> onMouseClicked = StreamController<Offset>();
-  StreamController<PointerSignalEvent> onPointerSignalEvent = StreamController<PointerSignalEvent>();
+  StreamController<PointerSignalEvent> onPointerSignalEvent =
+      StreamController<PointerSignalEvent>();
+  StreamController<double> onMouseScroll = StreamController<double>();
 
   // private
   bool _initialized = false;
@@ -37,18 +38,17 @@ class _GameEngineState extends State<GameEngine> {
   FocusNode _keyboardFocusNode;
   double appBarHeight = 70;
   Random random = Random();
+  mat.Color _backgroundColor = mat.Colors.black;
 
   void handlePointerSignalEvent(PointerSignalEvent pointerSignalEvent) {
     if (pointerSignalEvent is PointerScrollEvent) {
-      double scroll = pointerSignalEvent.scrollDelta.dy;
-      zoom += (scroll * scrollSensitivity) * (zoom * scrollSensitivity);
-      centerCamera(selectedPlanet.position, smooth: 1);
+      onMouseScroll.add(pointerSignalEvent.scrollDelta.dy);
     }
-    if(pointerSignalEvent is PointerMoveEvent){
-      mousePosition = pointerSignalEvent.position;
-      mouseDelta = pointerSignalEvent.delta;
-      print("Mouse moved ${mousePosition}");
-    }
+  }
+
+  void handleMouseScroll(double scroll) {
+    zoom += (scroll * scrollSensitivity) * (zoom * scrollSensitivity);
+    centerCamera(selectedPlanet.position, smooth: 1);
   }
 
   @override
@@ -60,6 +60,7 @@ class _GameEngineState extends State<GameEngine> {
     onKeyPressed.stream.listen(handleKeyPressed);
     onMouseClicked.stream.listen(handleMouseClicked);
     onPointerSignalEvent.stream.listen(handlePointerSignalEvent);
+    onMouseScroll.stream.listen(handleMouseScroll);
     super.initState();
   }
 
@@ -90,7 +91,7 @@ class _GameEngineState extends State<GameEngine> {
     onKeyPressed.close();
     onMouseClicked.close();
     onPointerSignalEvent.close();
-//    onMouseScroll.close();
+    onMouseScroll.close();
     universe.dispose();
     super.dispose();
   }
@@ -214,6 +215,11 @@ class _GameEngineState extends State<GameEngine> {
       }
     }
 
+    if (event.isShiftPressed) {
+      camera.x += mouseDelta.dx;
+      camera.y += mouseDelta.dy;
+    }
+
     if (event.isKeyPressed(LogicalKeyboardKey.space)) {
       togglePaused();
     }
@@ -259,8 +265,8 @@ class _GameEngineState extends State<GameEngine> {
   Widget buildBody(BuildContext context) {
     return MouseRegion(
       onHover: (pointerHoverEvent) {
-//        mousePosition = pointerHoverEvent.position;
-//        mouseDelta = pointerHoverEvent.delta;
+        mousePosition = pointerHoverEvent.position;
+        mouseDelta = pointerHoverEvent.delta;
       },
       child: PositionedTapDetector(
         onTap: (position) {
@@ -271,7 +277,7 @@ class _GameEngineState extends State<GameEngine> {
             onPointerSignalEvent.add(pointerSignal);
           },
           child: Container(
-            color: mat.Colors.black,
+            color: _backgroundColor,
             width: _screenSize.width,
             height: _screenSize.height,
             child: _customPaint,
