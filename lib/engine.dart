@@ -24,10 +24,10 @@ class GameEngine extends StatefulWidget {
 }
 
 class _GameEngineState extends State<GameEngine> {
-
   StreamController<RawKeyEvent> onKeyPressed = StreamController<RawKeyEvent>();
   StreamController<Offset> onMouseClicked = StreamController<Offset>();
-  StreamController<PointerSignalEvent> onPointerSignalEvent = StreamController<PointerSignalEvent>();
+  StreamController<PointerSignalEvent> onPointerSignalEvent =
+      StreamController<PointerSignalEvent>();
   StreamController<double> onMouseScroll = StreamController<double>();
 
   bool _initialized = false;
@@ -47,8 +47,23 @@ class _GameEngineState extends State<GameEngine> {
   }
 
   void handleMouseScroll(double scroll) {
+
+    Vector2 centerWorldPosition = convertScreenToWorldPosition(_screenSize.width * 0.5, _screenSize.height * 0.5);
     zoom += (scroll * scrollSensitivity) * (zoom * scrollSensitivity);
-    centerCamera(selectedPlanet.position, smooth: 1);
+
+    if (planetSelected) {
+      centerCamera(selectedPlanet.position, smooth: 1);
+      return;
+    }
+
+    centerCamera(centerWorldPosition, smooth: 1);
+
+//    if(scroll < 0){
+//      Vector2 mPos = mouseWorldPosition;
+
+//      Vector2 dif = mPos - centerWorldPosition;
+//      camera += dif * zoom;
+//    }
   }
 
   @override
@@ -113,21 +128,16 @@ class _GameEngineState extends State<GameEngine> {
     selectedPlanet = universe.planets[0];
   }
 
-  void handleCollision(PlanetCollision event) {
-    if(selectedPlanet == null) return;
+  void handleCollision(PlanetCollision planetCollision) {
+    if (selectedPlanet == null) return;
 
-    if (selectedPlanet == event.target) {
-      if(event.source == null){
-        throw Exception("Source planet is null");
-      }
-      selectPlanet(event.source);
+    if (selectedPlanet == planetCollision.target) {
+      selectPlanet(planetCollision.source);
     }
   }
 
-  void spawnRandomPlanet() {
-    double mass = random.nextDouble() * 5;
-
-    double rValue(double max) {
+  Planet spawnRandomPlanet({int maxMass = 5, double maxDistance = 1000}) {
+    double randomValue(double max) {
       double v = random.nextDouble() * max;
       if (random.nextBool()) {
         return -v;
@@ -135,9 +145,12 @@ class _GameEngineState extends State<GameEngine> {
       return v;
     }
 
-    Vector2 velocity = Vector2(rValue(2), rValue(2));
-    Planet planet = universe.add(getRandomPosition(), mass);
+    Vector2 position =
+        Vector2(randomValue(maxDistance), randomValue(maxDistance));
+    Vector2 velocity = Vector2(randomValue(2), randomValue(2));
+    Planet planet = universe.add(position, random.nextDouble() * maxMass);
     planet.velocity = velocity;
+    return planet;
   }
 
   Vector2 getRandomPosition() {
@@ -179,29 +192,27 @@ class _GameEngineState extends State<GameEngine> {
   }
 
   void handleMouseClicked(Offset offset) {
+    Vector2 mouseWorldPosition =
+        convertScreenToWorldPosition(offset.dx, offset.dy);
 
-    Vector2 mouseWorldPosition = convertScreenToWorldPosition(offset.dx, offset.dy);
-
-    if(universe.planets.isNotEmpty){
-
+    if (universe.planets.isNotEmpty) {
       Planet closestPlanet = universe.planets[0];
-      double closestPlanetDistance = closestPlanet.position.distanceTo(mouseWorldPosition);
-      for(int i = 1; i < universe.planets.length; i++){
-
-          double distance = universe.planets[i].position.distanceTo(mouseWorldPosition);
-          if(distance < closestPlanetDistance){
-            closestPlanet = universe.planets[i];
-            closestPlanetDistance = distance;
-          }
+      double closestPlanetDistance =
+          closestPlanet.position.distanceTo(mouseWorldPosition);
+      for (int i = 1; i < universe.planets.length; i++) {
+        double distance =
+            universe.planets[i].position.distanceTo(mouseWorldPosition);
+        if (distance < closestPlanetDistance) {
+          closestPlanet = universe.planets[i];
+          closestPlanetDistance = distance;
+        }
       }
 
-      if(closestPlanetDistance / zoom < 30){
+      if (closestPlanetDistance / zoom < 30) {
         selectPlanet(closestPlanet);
         return;
       }
     }
-
-
 
     double mass = 1;
     universe.add(mouseWorldPosition, mass);
@@ -250,7 +261,7 @@ class _GameEngineState extends State<GameEngine> {
 //    if(event.isAltPressed){
 //      cameraTracking = !cameraTracking;
 //    }
-    if(event.isKeyPressed(LogicalKeyboardKey.keyE)){
+    if (event.isKeyPressed(LogicalKeyboardKey.keyE)) {
       deselectPlanet();
     }
     if (event.isKeyPressed(LogicalKeyboardKey.space)) {
@@ -333,18 +344,17 @@ class _GameEngineState extends State<GameEngine> {
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 10),
                 decoration: const BoxDecoration(
-                    border: Border(
-                      left: BorderSide(
-                          color: mat.Colors.black,
-                          width: 1,
-                          style: BorderStyle.solid
-                      ),
-                      right: BorderSide(
-                          color: mat.Colors.black,
-                          width: 1,
-                          style: BorderStyle.solid
-                      ),
-                    ),),
+                  border: Border(
+                    left: BorderSide(
+                        color: mat.Colors.black,
+                        width: 1,
+                        style: BorderStyle.solid),
+                    right: BorderSide(
+                        color: mat.Colors.black,
+                        width: 1,
+                        style: BorderStyle.solid),
+                  ),
+                ),
                 child: Row(
                   children: [
                     Text(
@@ -375,9 +385,19 @@ class _GameEngineState extends State<GameEngine> {
                   "Deselect",
                 ),
               ),
+              FlatButton(
+                onPressed: () {
+                  spawnRandomPlanet(maxMass: 10000, maxDistance: 100000);
+                },
+                child: Text(
+                  "Spawn Random",
+                ),
+              ),
             ],
           ),
-        Expanded(child: SizedBox(),),
+        Expanded(
+          child: SizedBox(),
+        ),
         IconButton(
           icon: Icon(Icons.refresh),
           onPressed: initialize,
@@ -394,7 +414,7 @@ class _GameEngineState extends State<GameEngine> {
     selectedPlanet = planet;
   }
 
-  void deselectPlanet(){
+  void deselectPlanet() {
     selectedPlanet = null;
   }
 }
@@ -433,8 +453,12 @@ Vector2 zero = Vector2.zero();
 double cameraZ = 1;
 bool cameraTracking = true;
 
+Vector2 get mouseWorldPosition => convertScreenToWorldPosition(mousePosition.dx, mousePosition.dy);
+
 bool get doTrack {
-  return selectedPlanet != null && cameraTracking && !isPressed(LogicalKeyboardKey.shiftLeft);
+  return selectedPlanet != null &&
+      cameraTracking &&
+      !isPressed(LogicalKeyboardKey.shiftLeft);
 }
 
 double get zoom => cameraZ;
@@ -452,6 +476,8 @@ set zoom(double value) {
 
 Planet selectedPlanet;
 double minZoom = 0.005;
+
+bool get planetSelected => selectedPlanet != null;
 
 Offset convertWorldToScreenPosition(Vector2 position) {
   double transX = camera.x / zoom;
