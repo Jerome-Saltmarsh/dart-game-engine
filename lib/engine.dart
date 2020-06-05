@@ -9,6 +9,9 @@ import 'package:onlinepainter/universe.dart';
 import 'package:positioned_tap_detector/positioned_tap_detector.dart';
 import 'package:vector_math/vector_math_64.dart';
 
+// StarField
+// Fix Camera Track
+// Display Mass Text
 class GameEngine extends StatefulWidget {
   /// Frames Per Second
   final int fps;
@@ -46,7 +49,7 @@ class _GameEngineState extends State<GameEngine> {
   void selectNextPlanet() {
     if (universe.planets.isEmpty) return;
 
-    if (selectedPlanet == null) {
+    if (selectedPlanet == null || universe.planets.length == 1) {
       selectedPlanet = universe.planets[0];
       return;
     }
@@ -57,7 +60,7 @@ class _GameEngineState extends State<GameEngine> {
   void selectPreviousPlanet() {
     if (universe.planets.isEmpty) return;
 
-    if (selectedPlanet == null) {
+    if (selectedPlanet == null || universe.planets.length == 1) {
       selectedPlanet = universe.planets[0];
       return;
     }
@@ -78,7 +81,8 @@ class _GameEngineState extends State<GameEngine> {
       universe.onPlanetDestroyed.stream.listen(onCollision);
     }
     universe.planets.clear();
-    camera = Vector3(0, 0, 1);
+    camera = Vector2(0, 0);
+    zoom = 1;
     universe.rightRound = _screenSize.width - 10;
     universe.bottomBound = _screenSize.height - appBarHeight;
     for (int i = 0; i < 10; i++) {
@@ -118,7 +122,7 @@ class _GameEngineState extends State<GameEngine> {
 
   void fixedUpdate() {
     if (cameraTracking && selectedPlanet != null) {
-      cameraTrack(selectedPlanet.position);
+      centerCamera(selectedPlanet.position);
     }
 
     if (!_paused) {
@@ -127,8 +131,8 @@ class _GameEngineState extends State<GameEngine> {
     setState(doNothing);
   }
 
-  void cameraTrack(Vector2 position) {
-//    double x = 0;
+  void trackAllPlanets() {
+    //    double x = 0;
 //    double y = 0;
 //
 //    universe.planets.forEach((element) {
@@ -138,11 +142,12 @@ class _GameEngineState extends State<GameEngine> {
 //
 //    x /= universe.planets.length;
 //    y /= universe.planets.length;
+  }
 
-    Offset sc = convertWorldToScreenPosition(position);
-    Vector2 t = convertScreenToWorldPosition(sc.dx - _screenSize.width * 0.5, sc.dy - (_screenSize.height * 0.5));
-    camera.x = t.x;
-    camera.y = t.y;
+  void centerCamera(Vector2 worldPosition, {double smooth = 0.1}) {
+    Vector2 centerWorldPosition = convertScreenToWorldPosition(_screenSize.width * 0.5, _screenSize.height * 0.5);
+    Vector2 translation = worldPosition - centerWorldPosition;
+    camera += (translation * zoom * smooth);
   }
 
   void doNothing() {
@@ -155,9 +160,8 @@ class _GameEngineState extends State<GameEngine> {
   }
 
   void onKeyEvent(RawKeyEvent event) {
-
-    if(!cameraTracking){
-      double speed = 10 * camera.z;
+    if (!cameraTracking) {
+      double speed = 10 * zoom;
       if (event.isKeyPressed(LogicalKeyboardKey.keyA)) {
         camera.x -= speed;
       }
@@ -202,65 +206,15 @@ class _GameEngineState extends State<GameEngine> {
       painter: _customPainter,
     );
 
-    double MaxMass = 200;
-
     return RawKeyboardListener(
       focusNode: _keyboardFocusNode,
       onKey: (key) {
         onKeyPressed.add(key);
       },
       child: Scaffold(
-        appBar: AppBar(
-          actions: [
-            IconButton(
-              icon: Icon(Icons.refresh),
-              onPressed: initialize,
-            ),
-            if (universe.planets.length > 1)
-              IconButton(
-                icon: Icon(Icons.navigate_next),
-                onPressed: selectNextPlanet,
-              ),
-            IconButton(
-              icon: Icon(cameraTracking ? Icons.track_changes : Icons.clear),
-              onPressed: (){
-                cameraTracking = !cameraTracking;
-              },
-            ),
-            if (universe != null)
-              Checkbox(
-                value: !universe.bounded,
-                onChanged: (value) {
-                  universe.bounded = !value;
-                },
-                activeColor: mat.Colors.orange,
-                checkColor: mat.Colors.black,
-              ),
-            if (selectedPlanet != null)
-              Container(
-                width: 200,
-                child: Slider(
-                  value: selectedPlanet.mass > MaxMass ? MaxMass : selectedPlanet.mass,
-                  onChanged: (value) {
-                    selectedPlanet.mass = value;
-                  },
-                  min: 0.1,
-                  max: MaxMass,
-                  label: "Mass ${selectedPlanet.mass}",
-                  activeColor: mat.Colors.black,
-                  inactiveColor: mat.Colors.white,
-                ),
-              ),
-            IconButton(
-              icon: Icon(_paused ? Icons.play_arrow : Icons.pause),
-              onPressed: togglePaused,
-            )
-          ],
-        ),
+        appBar: buildAppBar(context),
         body: PositionedTapDetector(
           onTap: (position) {
-            print("Click x:${position.relative.dx}, y:${position.relative.dy}");
-
             double mass = 1;
             Vector2 wPos = convertScreenToWorldPosition(
                 position.relative.dx, position.relative.dy);
@@ -272,20 +226,7 @@ class _GameEngineState extends State<GameEngine> {
                 double scroll = pointerSignal.scrollDelta.dy;
                 zoom +=
                     (scroll * scrollSensitivity) * (zoom * scrollSensitivity);
-//
-//              Offset _getWidgetTopLeft() {
-//                final translation =
-//                context?.findRenderObject()?.getTransformTo(null)?.getTranslation();
-//                return translation != null ? Offset(translation.x, translation.y) : null;
-//              }
-//              final topLeft = _getWidgetTopLeft();
-//              final global = Offset(pointerSignal.position.dx, pointerSignal.position.dy);
-//              final relative = topLeft != null ? global - topLeft : null;
-//
-//
-//              Vector2 pos = Vector2(relative.dx, relative.dy);
-//              toWorldPosition(pos);
-//              game.add(pos, 2, velocity: Vector2.zero());
+                centerCamera(selectedPlanet.position, smooth: 1);
               }
             },
             child: Container(
@@ -297,6 +238,58 @@ class _GameEngineState extends State<GameEngine> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget buildAppBar(BuildContext context){
+    return AppBar(
+      actions: [
+        IconButton(
+          icon: Icon(Icons.refresh),
+          onPressed: initialize,
+        ),
+        if (universe.planets.length > 1)
+          IconButton(
+            icon: Icon(Icons.navigate_next),
+            onPressed: selectNextPlanet,
+          ),
+        IconButton(
+          icon: Icon(cameraTracking ? Icons.track_changes : Icons.clear),
+          onPressed: () {
+            cameraTracking = !cameraTracking;
+          },
+        ),
+        if (universe != null)
+          Checkbox(
+            value: !universe.bounded,
+            onChanged: (value) {
+              universe.bounded = !value;
+            },
+            activeColor: mat.Colors.orange,
+            checkColor: mat.Colors.black,
+          ),
+        if (selectedPlanet != null)
+          Container(
+            width: 200,
+            child: Slider(
+              value: selectedPlanet.mass > maxMass
+                  ? maxMass
+                  : selectedPlanet.mass,
+              onChanged: (value) {
+                selectedPlanet.mass = value;
+              },
+              min: 0.1,
+              max: maxMass,
+              label: "Mass ${selectedPlanet.mass}",
+              activeColor: mat.Colors.black,
+              inactiveColor: mat.Colors.white,
+            ),
+          ),
+        IconButton(
+          icon: Icon(_paused ? Icons.play_arrow : Icons.pause),
+          onPressed: togglePaused,
+        )
+      ],
     );
   }
 }
@@ -325,23 +318,26 @@ Paint borderPaint = Paint()
   ..style = PaintingStyle.fill
   ..strokeWidth = 2;
 
+double maxMass = 200;
 Universe universe;
-Vector3 camera = Vector3(0, 0, 1);
+Vector2 camera = Vector2(0, 0);
 double scrollSensitivity = 0.02;
 Vector2 zero = Vector2.zero();
+double cameraZ = 1;
 bool cameraTracking = true;
 
-double get zoom => camera.z;
-Planet selectedPlanet;
-
-double minZoom = 0.005;
+double get zoom => cameraZ;
 
 set zoom(double value) {
   if (value < minZoom) {
     value = minZoom;
   }
-  camera.z = value;
+  cameraZ = value;
 }
+
+Planet selectedPlanet;
+
+double minZoom = 0.005;
 
 Offset convertWorldToScreenPosition(Vector2 position) {
   double transX = camera.x / zoom;
