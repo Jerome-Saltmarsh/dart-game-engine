@@ -10,7 +10,9 @@ import 'package:positioned_tap_detector/positioned_tap_detector.dart';
 import 'package:vector_math/vector_math_64.dart';
 
 // StarField
-// Display Mass Text
+// Implement Collision Explosion
+// Fix Key enter bug
+// Implement zoom into location
 class GameEngine extends StatefulWidget {
   /// Frames Per Second
   final int fps;
@@ -22,14 +24,12 @@ class GameEngine extends StatefulWidget {
 }
 
 class _GameEngineState extends State<GameEngine> {
-  // public
+
   StreamController<RawKeyEvent> onKeyPressed = StreamController<RawKeyEvent>();
   StreamController<Offset> onMouseClicked = StreamController<Offset>();
-  StreamController<PointerSignalEvent> onPointerSignalEvent =
-      StreamController<PointerSignalEvent>();
+  StreamController<PointerSignalEvent> onPointerSignalEvent = StreamController<PointerSignalEvent>();
   StreamController<double> onMouseScroll = StreamController<double>();
 
-  // private
   bool _initialized = false;
   bool _paused = false;
   Size _screenSize;
@@ -101,6 +101,7 @@ class _GameEngineState extends State<GameEngine> {
       universe = Universe();
       universe.onPlanetDestroyed.stream.listen(handleCollision);
     }
+    universe.bounded = false;
     universe.planets.clear();
     camera = Vector2(0, 0);
     zoom = 1;
@@ -113,8 +114,13 @@ class _GameEngineState extends State<GameEngine> {
   }
 
   void handleCollision(PlanetCollision event) {
+    if(selectedPlanet == null) return;
+
     if (selectedPlanet == event.target) {
-      selectedPlanet = event.source;
+      if(event.source == null){
+        throw Exception("Source planet is null");
+      }
+      selectPlanet(event.source);
     }
   }
 
@@ -151,10 +157,8 @@ class _GameEngineState extends State<GameEngine> {
   }
 
   void updateCamera() {
-    if (cameraTracking && selectedPlanet != null) {
-      if (!isPressed(LogicalKeyboardKey.shiftLeft)) {
-        centerCamera(selectedPlanet.position);
-      }
+    if (doTrack) {
+      centerCamera(selectedPlanet.position);
     }
   }
 
@@ -175,9 +179,32 @@ class _GameEngineState extends State<GameEngine> {
   }
 
   void handleMouseClicked(Offset offset) {
+
+    Vector2 mouseWorldPosition = convertScreenToWorldPosition(offset.dx, offset.dy);
+
+    if(universe.planets.isNotEmpty){
+
+      Planet closestPlanet = universe.planets[0];
+      double closestPlanetDistance = closestPlanet.position.distanceTo(mouseWorldPosition);
+      for(int i = 1; i < universe.planets.length; i++){
+
+          double distance = universe.planets[i].position.distanceTo(mouseWorldPosition);
+          if(distance < closestPlanetDistance){
+            closestPlanet = universe.planets[i];
+            closestPlanetDistance = distance;
+          }
+      }
+
+      if(closestPlanetDistance / zoom < 30){
+        selectPlanet(closestPlanet);
+        return;
+      }
+    }
+
+
+
     double mass = 1;
-    Vector2 wPos = convertScreenToWorldPosition(offset.dx, offset.dy);
-    universe.add(wPos, mass);
+    universe.add(mouseWorldPosition, mass);
   }
 
   void handleKeyPressed(RawKeyEvent event) {
@@ -215,15 +242,20 @@ class _GameEngineState extends State<GameEngine> {
       }
     }
 
-    if (event.isShiftPressed) {
-      camera.x += mouseDelta.dx;
-      camera.y += mouseDelta.dy;
-    }
+//    if (event.isShiftPressed) {
+//      camera.x += mouseDelta.dx;
+//      camera.y += mouseDelta.dy;
+//    }
 
+//    if(event.isAltPressed){
+//      cameraTracking = !cameraTracking;
+//    }
+    if(event.isKeyPressed(LogicalKeyboardKey.keyE)){
+      deselectPlanet();
+    }
     if (event.isKeyPressed(LogicalKeyboardKey.space)) {
       togglePaused();
     }
-
     if (event.isKeyPressed(LogicalKeyboardKey.arrowRight)) {
       selectNextPlanet();
     }
@@ -290,53 +322,62 @@ class _GameEngineState extends State<GameEngine> {
   Widget buildAppBar(BuildContext context) {
     return AppBar(
       actions: [
-        if (universe.planets.length > 1)
-          IconButton(
-            icon: Icon(Icons.navigate_next),
-            onPressed: selectNextPlanet,
-          ),
-        IconButton(
-          icon: Icon(cameraTracking ? Icons.track_changes : Icons.clear),
-          onPressed: () {
-            cameraTracking = !cameraTracking;
-          },
-        ),
-        if (universe != null)
-          Checkbox(
-            value: !universe.bounded,
-            onChanged: (value) {
-              universe.bounded = !value;
-            },
-            activeColor: mat.Colors.orange,
-            checkColor: mat.Colors.black,
-          ),
+//        if (universe.planets.length > 1)
+//          IconButton(
+//            icon: Icon(Icons.navigate_next),
+//            onPressed: selectNextPlanet,
+//          ),
         if (selectedPlanet != null)
           Row(
             children: [
-              Text(
-                "Mass: ${selectedPlanet.mass.roundToDouble()}",
-              ),
               Container(
-                width: 200,
-                child: Slider(
-                  value: selectedPlanet.mass > maxMass
-                      ? maxMass
-                      : selectedPlanet.mass,
-                  onChanged: (value) {
-                    selectedPlanet.mass = value;
-                  },
-                  min: 0.1,
-                  max: maxMass,
-                  label: "Mass ${selectedPlanet.mass.round()}",
-                  activeColor: mat.Colors.black,
-                  inactiveColor: mat.Colors.white,
+                padding: EdgeInsets.symmetric(horizontal: 10),
+                decoration: const BoxDecoration(
+                    border: Border(
+                      left: BorderSide(
+                          color: mat.Colors.black,
+                          width: 1,
+                          style: BorderStyle.solid
+                      ),
+                      right: BorderSide(
+                          color: mat.Colors.black,
+                          width: 1,
+                          style: BorderStyle.solid
+                      ),
+                    ),),
+                child: Row(
+                  children: [
+                    Text(
+                      "Mass: ${selectedPlanet.mass.roundToDouble()}",
+                    ),
+                    Container(
+                      width: 200,
+                      child: Slider(
+                        value: selectedPlanet.mass > maxMass
+                            ? maxMass
+                            : selectedPlanet.mass,
+                        onChanged: (value) {
+                          selectedPlanet.mass = value;
+                        },
+                        min: 0.1,
+                        max: maxMass,
+                        label: "Mass ${selectedPlanet.mass.round()}",
+                        activeColor: mat.Colors.black,
+                        inactiveColor: mat.Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              FlatButton(
+                onPressed: deselectPlanet,
+                child: Text(
+                  "Deselect",
                 ),
               ),
             ],
           ),
-        SizedBox(
-          width: 10,
-        ),
+        Expanded(child: SizedBox(),),
         IconButton(
           icon: Icon(Icons.refresh),
           onPressed: initialize,
@@ -347,6 +388,14 @@ class _GameEngineState extends State<GameEngine> {
         )
       ],
     );
+  }
+
+  void selectPlanet(Planet planet) {
+    selectedPlanet = planet;
+  }
+
+  void deselectPlanet(){
+    selectedPlanet = null;
   }
 }
 
@@ -374,7 +423,7 @@ Paint borderPaint = Paint()
   ..style = PaintingStyle.fill
   ..strokeWidth = 2;
 
-double maxMass = 1000;
+double maxMass = 10000;
 Universe universe;
 Vector2 camera = Vector2(0, 0);
 Offset mousePosition;
@@ -385,9 +434,7 @@ double cameraZ = 1;
 bool cameraTracking = true;
 
 bool get doTrack {
-  return selectedPlanet != null &&
-      cameraTracking &&
-      !isPressed(LogicalKeyboardKey.shiftLeft);
+  return selectedPlanet != null && cameraTracking && !isPressed(LogicalKeyboardKey.shiftLeft);
 }
 
 double get zoom => cameraZ;
@@ -404,7 +451,6 @@ set zoom(double value) {
 }
 
 Planet selectedPlanet;
-
 double minZoom = 0.005;
 
 Offset convertWorldToScreenPosition(Vector2 position) {

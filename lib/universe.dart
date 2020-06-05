@@ -92,10 +92,11 @@ class Universe {
           double combinedMass = planets[i].mass + planets[j].mass;
           planets[i].mass = combinedMass;
           planets[i].velocity = combinedMomentum / combinedMass;
+          onPlanetDestroyed.add(PlanetCollision(planets[i], planets[j]));
+
+
           planets.removeAt(j);
           j--;
-
-          onPlanetDestroyed.add(PlanetCollision(planets[i], planets[j]));
         }
       }
     }
