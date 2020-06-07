@@ -77,6 +77,7 @@ class _GameEngineState extends State<GameEngine> {
   }
 
   void handleUserInput() {
+
     if (selectedPlanet == null) {
       double speed = 10 * zoom;
       if (keyIsPressed(LogicalKeyboardKey.keyA)) {
@@ -91,6 +92,20 @@ class _GameEngineState extends State<GameEngine> {
       if (keyIsPressed(LogicalKeyboardKey.keyS)) {
         camera.y += speed;
       }
+    }else{
+      double acceleration = 0.5;
+      if (keyIsPressed(LogicalKeyboardKey.keyA)) {
+        selectedPlanet.velocity.x -= acceleration;
+      }
+      if (keyIsPressed(LogicalKeyboardKey.keyW)) {
+        selectedPlanet.velocity.y -= acceleration;
+      }
+      if (keyIsPressed(LogicalKeyboardKey.keyD)) {
+        selectedPlanet.velocity.x += acceleration;
+      }
+      if (keyIsPressed(LogicalKeyboardKey.keyS)) {
+        selectedPlanet.velocity.y += acceleration;
+      }
     }
   }
 
@@ -103,6 +118,12 @@ class _GameEngineState extends State<GameEngine> {
   }
 
   void handleMouseScroll(double scroll) {
+
+    if(planetSelected && keyIsPressed(LogicalKeyboardKey.shiftLeft)){
+      selectedPlanet.mass += 0.05 + selectedPlanet.mass * 0.001 * -scroll;
+      return;
+    }
+
     Vector2 preScrollMouseWorldPosition = mouseWorldPosition;
     zoom += (scroll * scrollSensitivity) * (zoom * scrollSensitivity);
 
@@ -201,6 +222,16 @@ class _GameEngineState extends State<GameEngine> {
     return planet;
   }
 
+  void spawnRandomVisiblePlanet(){
+    Vector2 min = convertScreenToWorldPosition(0, 0);
+    Vector2 max = convertScreenToWorldPosition(
+        _screenSize.width, _screenSize.height);
+    Vector2 range = max - min;
+    double x = min.x + (random.nextDouble() * range.x);
+    double y = min.y + (random.nextDouble() * range.y);
+    universe.add(Vector2(x, y), random.nextDouble() * zoom);
+  }
+
   Vector2 getRandomPosition() {
     double padding = 20;
     return Vector2(
@@ -253,28 +284,19 @@ class _GameEngineState extends State<GameEngine> {
       }
     }
 
-    universe.add(mouseWorldPosition, 1);
+
+    Planet planet = universe.add(mouseWorldPosition, 1);
+    if(keyIsPressed(LogicalKeyboardKey.shiftLeft)){
+      selectPlanet(planet);
+    }
   }
 
   void handleKeyPressed(RawKeyEvent event) {
     if (!cameraTracking) {
     } else if (selectedPlanet != null) {
-      double acceleration = 0.5;
 
       if (event.isKeyPressed(LogicalKeyboardKey.keyQ)) {
         selectedPlanet.velocity = zero;
-      }
-      if (event.isKeyPressed(LogicalKeyboardKey.keyA)) {
-        selectedPlanet.velocity.x -= acceleration;
-      }
-      if (event.isKeyPressed(LogicalKeyboardKey.keyW)) {
-        selectedPlanet.velocity.y -= acceleration;
-      }
-      if (event.isKeyPressed(LogicalKeyboardKey.keyD)) {
-        selectedPlanet.velocity.x += acceleration;
-      }
-      if (event.isKeyPressed(LogicalKeyboardKey.keyS)) {
-        selectedPlanet.velocity.y += acceleration;
       }
     }
     if (event.isKeyPressed(LogicalKeyboardKey.exit)) {
@@ -283,11 +305,17 @@ class _GameEngineState extends State<GameEngine> {
     if (event.isKeyPressed(LogicalKeyboardKey.keyE)) {
       deselectPlanet();
     }
+    if (event.isKeyPressed(LogicalKeyboardKey.keyR)) {
+      spawnRandomVisiblePlanet();
+    }
     if (event.isKeyPressed(LogicalKeyboardKey.arrowRight)) {
       selectNextPlanet();
     }
     if (event.isKeyPressed(LogicalKeyboardKey.arrowLeft)) {
       selectPreviousPlanet();
+    }
+    if (event.isKeyPressed(LogicalKeyboardKey.space)) {
+      deselectPlanet();
     }
   }
 
@@ -323,16 +351,7 @@ class _GameEngineState extends State<GameEngine> {
 
   Widget buildBody(BuildContext context) {
     return MouseRegion(
-      onHover: (pointerHoverEvent) {
-        previousMousePosition = mousePosition;
-        mousePosition = pointerHoverEvent.position;
-        mouseDelta = pointerHoverEvent.delta;
-
-        if (keyIsPressed(LogicalKeyboardKey.space)) {
-          deselectPlanet();
-          camera -= mouseWorldVelocity;
-        }
-      },
+      onHover: handlePointerHoverEvent,
       child: PositionedTapDetector(
         onTap: (position) {
           onMouseClicked.add(position.relative);
@@ -350,6 +369,16 @@ class _GameEngineState extends State<GameEngine> {
         ),
       ),
     );
+  }
+
+  void handlePointerHoverEvent(pointerHoverEvent){
+    previousMousePosition = mousePosition;
+    mousePosition = pointerHoverEvent.position;
+    mouseDelta = pointerHoverEvent.delta;
+
+    if (keyIsPressed(LogicalKeyboardKey.space)) {
+      camera -= mouseWorldVelocity;
+    }
   }
 
   Widget buildAppBar(BuildContext context) {
@@ -405,16 +434,7 @@ class _GameEngineState extends State<GameEngine> {
             ],
           ),
         FlatButton(
-          onPressed: () {
-//            spawnRandomPlanet(maxMass: 10000, maxDistance: 100000);
-            Vector2 min = convertScreenToWorldPosition(0, 0);
-            Vector2 max = convertScreenToWorldPosition(
-                _screenSize.width, _screenSize.height);
-            Vector2 range = max - min;
-            double x = min.x + (random.nextDouble() * range.x);
-            double y = min.y + (random.nextDouble() * range.y);
-            universe.add(Vector2(x, y), random.nextDouble() * zoom);
-          },
+          onPressed: spawnRandomVisiblePlanet,
           child: Text(
             "Spawn Random",
           ),
