@@ -26,18 +26,29 @@ class Planet {
   Vector2 get momentum => velocity * mass;
 
   double get radius => sqrt(mass / pi) / density;
+
+  void setPosition(Vector2 value){
+    position = value;
+    previousDestination = value - velocity;
+    velocity = Vector2.zero();
+  }
 }
 
-class PlanetCollision{
+class PlanetCollision {
   Planet source;
   Planet target;
 
   PlanetCollision(this.source, this.target);
 }
 
+class Explosion {
+  double radius;
+  Vector2 position;
+}
+
 class Universe {
   List<Planet> planets = [];
-
+  List<Explosion> explosions = [];
   double leftBound = 0;
   double rightRound = 300;
   double topBound = 0;
@@ -83,7 +94,7 @@ class Universe {
     }
   }
 
-  void dispose(){
+  void dispose() {
     onPlanetDestroyed.close();
   }
 

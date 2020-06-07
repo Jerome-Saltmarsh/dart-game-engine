@@ -1,11 +1,11 @@
 {
-    "name": "onlinepainter",
-    "short_name": "onlinepainter",
+    "name": "spaceblast",
+    "short_name": "spaceblast",
     "start_url": ".",
     "display": "minimal-ui",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter application.",
+    "description": "A gravity simulation made using Flutter",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:math';
-
+import 'dart:io' show Platform;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/material.dart' as mat;
@@ -21,6 +21,15 @@ class GameEngine extends StatefulWidget {
   _GameEngineState createState() => _GameEngineState();
 }
 
+bool scrolled = false;
+bool panned = false;
+bool spawned = false;
+bool selected = false;
+bool spawnSelect = false;
+bool accelerated = false;
+bool stopped = false;
+bool massChanged = false;
+
 class _GameEngineState extends State<GameEngine> {
   StreamController<RawKeyEvent> onKeyPressed = StreamController<RawKeyEvent>();
   StreamController<Offset> onMouseClicked = StreamController<Offset>();
@@ -38,6 +47,8 @@ class _GameEngineState extends State<GameEngine> {
   Random random = Random();
   mat.Color _backgroundColor = mat.Colors.black;
 
+  bool get isMobile => _screenSize.width < 700;
+
   @override
   void initState() {
     Timer.periodic(Duration(milliseconds: 1000 ~/ widget.fps), (timer) {
@@ -49,6 +60,103 @@ class _GameEngineState extends State<GameEngine> {
     onPointerSignalEvent.stream.listen(handlePointerSignalEvent);
     onMouseScroll.stream.listen(handleMouseScroll);
     super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _screenSize = MediaQuery.of(context).size;
+
+    if (!_initialized) {
+      _initialized = true;
+      initialize();
+    }
+    if (!_keyboardFocusNode.hasFocus) {
+      FocusScope.of(context).requestFocus(_keyboardFocusNode);
+    }
+
+    _customPainter = EnginePainter();
+    _customPaint = CustomPaint(
+      size: _screenSize,
+      painter: _customPainter,
+    );
+
+    return RawKeyboardListener(
+      focusNode: _keyboardFocusNode,
+      onKey: (key) {
+        onKeyPressed.add(key);
+      },
+      child: Scaffold(
+        appBar: buildAppBar(context),
+        body: Stack(
+          children: [
+            buildBody(context),
+            if (!isMobile && currentTutorial < tutorials.length)
+              Positioned(
+                bottom: 50,
+                left: 50,
+                right: 50,
+                child: Text(
+                  tutorials[currentTutorial].text,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: mat.Colors.blueAccent, fontSize: 20),
+                ),
+              ),
+            if (isMobile)
+//              Positioned(
+//                bottom: 0,
+//                right: 50,
+//                child: Text(
+//                  "hello",
+//                  textAlign: TextAlign.center,
+//                  style: TextStyle(color: mat.Colors.blueAccent, fontSize: 20),
+//                ),
+//              ),
+              Container(
+                width: double.infinity,
+                height: _screenSize.height,
+                alignment: Alignment.bottomRight,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        Icons.zoom_out,
+                        color: mat.Colors.orange,
+                        size: 25,
+                      ),
+                      onPressed: () {
+                        zoom *= 1.1;
+                        if (planetSelected) {
+                          centerCamera(selectedPlanet.position, smooth: 1);
+                          return;
+                        }
+                      },
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.zoom_in,
+                        color: mat.Colors.orange,
+                        size: 25,
+                      ),
+                      onPressed: () {
+                        zoom *= 0.9;
+                        if (planetSelected) {
+                          centerCamera(selectedPlanet.position, smooth: 1);
+                          return;
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              )
+          ],
+        ),
+      ),
+    );
+  }
+
+  void zoomIn(){
+    zoom -= (scrollSensitivity) * (zoom * scrollSensitivity);
   }
 
   void initialize() {
@@ -73,11 +181,21 @@ class _GameEngineState extends State<GameEngine> {
     if (!_paused) {
       universe.update();
     }
+    updateTutorial();
     setState(doNothing);
   }
 
-  void handleUserInput() {
+  void updateTutorial() {
+    if (currentTutorial >= tutorials.length) {
+      return;
+    }
+    if (tutorials[currentTutorial].isFinished()) {
+      print("Tutorial Completed!");
+      currentTutorial++;
+    }
+  }
 
+  void handleUserInput() {
     if (selectedPlanet == null) {
       double speed = 10 * zoom;
       if (keyIsPressed(LogicalKeyboardKey.keyA)) {
@@ -92,19 +210,23 @@ class _GameEngineState extends State<GameEngine> {
       if (keyIsPressed(LogicalKeyboardKey.keyS)) {
         camera.y += speed;
       }
-    }else{
+    } else {
       double acceleration = 0.5;
       if (keyIsPressed(LogicalKeyboardKey.keyA)) {
         selectedPlanet.velocity.x -= acceleration;
+        accelerated = true;
       }
       if (keyIsPressed(LogicalKeyboardKey.keyW)) {
         selectedPlanet.velocity.y -= acceleration;
+        accelerated = true;
       }
       if (keyIsPressed(LogicalKeyboardKey.keyD)) {
         selectedPlanet.velocity.x += acceleration;
+        accelerated = true;
       }
       if (keyIsPressed(LogicalKeyboardKey.keyS)) {
         selectedPlanet.velocity.y += acceleration;
+        accelerated = true;
       }
     }
   }
@@ -118,9 +240,11 @@ class _GameEngineState extends State<GameEngine> {
   }
 
   void handleMouseScroll(double scroll) {
+    scrolled = true;
 
-    if(planetSelected && keyIsPressed(LogicalKeyboardKey.shiftLeft)){
+    if (planetSelected && keyIsPressed(LogicalKeyboardKey.shiftLeft)) {
       selectedPlanet.mass += 0.05 + selectedPlanet.mass * 0.001 * -scroll;
+      massChanged = true;
       return;
     }
 
@@ -222,10 +346,10 @@ class _GameEngineState extends State<GameEngine> {
     return planet;
   }
 
-  void spawnRandomVisiblePlanet(){
+  void spawnRandomVisiblePlanet() {
     Vector2 min = convertScreenToWorldPosition(0, 0);
-    Vector2 max = convertScreenToWorldPosition(
-        _screenSize.width, _screenSize.height);
+    Vector2 max =
+        convertScreenToWorldPosition(_screenSize.width, _screenSize.height);
     Vector2 range = max - min;
     double x = min.x + (random.nextDouble() * range.x);
     double y = min.y + (random.nextDouble() * range.y);
@@ -269,6 +393,7 @@ class _GameEngineState extends State<GameEngine> {
       Planet closestPlanet = universe.planets[0];
       double closestPlanetDistance =
           closestPlanet.position.distanceTo(mouseWorldPosition);
+
       for (int i = 1; i < universe.planets.length; i++) {
         double distance =
             universe.planets[i].position.distanceTo(mouseWorldPosition);
@@ -280,29 +405,28 @@ class _GameEngineState extends State<GameEngine> {
 
       if (closestPlanetDistance / zoom < 30) {
         selectPlanet(closestPlanet);
+        selected = true;
         return;
       }
     }
 
-
     Planet planet = universe.add(mouseWorldPosition, 1);
-    if(keyIsPressed(LogicalKeyboardKey.shiftLeft)){
+
+    spawned = true;
+
+    if (keyIsPressed(LogicalKeyboardKey.shiftLeft)) {
       selectPlanet(planet);
+      spawnSelect = true;
     }
   }
 
   void handleKeyPressed(RawKeyEvent event) {
-    if (!cameraTracking) {
-    } else if (selectedPlanet != null) {
-
-      if (event.isKeyPressed(LogicalKeyboardKey.keyQ)) {
-        selectedPlanet.velocity = zero;
-      }
+    if (selectedPlanet != null && event.isKeyPressed(LogicalKeyboardKey.keyQ)) {
+      selectedPlanet.velocity = zero;
+      stopped = true;
     }
-    if (event.isKeyPressed(LogicalKeyboardKey.exit)) {
-      deselectPlanet();
-    }
-    if (event.isKeyPressed(LogicalKeyboardKey.keyE)) {
+    if (event.isKeyPressed(LogicalKeyboardKey.space) ||
+        event.isKeyPressed(LogicalKeyboardKey.keyE)) {
       deselectPlanet();
     }
     if (event.isKeyPressed(LogicalKeyboardKey.keyR)) {
@@ -311,42 +435,12 @@ class _GameEngineState extends State<GameEngine> {
     if (event.isKeyPressed(LogicalKeyboardKey.arrowRight)) {
       selectNextPlanet();
     }
+    if (event.isKeyPressed(LogicalKeyboardKey.keyG) && planetSelected) {
+      selectedPlanet.setPosition(mouseWorldPosition);
+    }
     if (event.isKeyPressed(LogicalKeyboardKey.arrowLeft)) {
       selectPreviousPlanet();
     }
-    if (event.isKeyPressed(LogicalKeyboardKey.space)) {
-      deselectPlanet();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    _screenSize = MediaQuery.of(context).size;
-
-    if (!_initialized) {
-      _initialized = true;
-      initialize();
-    }
-    if (!_keyboardFocusNode.hasFocus) {
-      FocusScope.of(context).requestFocus(_keyboardFocusNode);
-    }
-
-    _customPainter = EnginePainter();
-    _customPaint = CustomPaint(
-      size: _screenSize,
-      painter: _customPainter,
-    );
-
-    return RawKeyboardListener(
-      focusNode: _keyboardFocusNode,
-      onKey: (key) {
-        onKeyPressed.add(key);
-      },
-      child: Scaffold(
-        appBar: buildAppBar(context),
-        body: buildBody(context),
-      ),
-    );
   }
 
   Widget buildBody(BuildContext context) {
@@ -371,13 +465,14 @@ class _GameEngineState extends State<GameEngine> {
     );
   }
 
-  void handlePointerHoverEvent(pointerHoverEvent){
+  void handlePointerHoverEvent(pointerHoverEvent) {
     previousMousePosition = mousePosition;
     mousePosition = pointerHoverEvent.position;
     mouseDelta = pointerHoverEvent.delta;
 
     if (keyIsPressed(LogicalKeyboardKey.space)) {
       camera -= mouseWorldVelocity;
+      panned = true;
     }
   }
 
@@ -425,20 +520,8 @@ class _GameEngineState extends State<GameEngine> {
                   ],
                 ),
               ),
-              FlatButton(
-                onPressed: deselectPlanet,
-                child: Text(
-                  "Deselect",
-                ),
-              ),
             ],
           ),
-        FlatButton(
-          onPressed: spawnRandomVisiblePlanet,
-          child: Text(
-            "Spawn Random",
-          ),
-        ),
         Expanded(
           child: SizedBox(),
         ),
@@ -465,6 +548,12 @@ class _GameEngineState extends State<GameEngine> {
 
 Paint circlePaint = Paint()
   ..color = mat.Colors.white
+  ..strokeCap = StrokeCap.round
+  ..style = PaintingStyle.fill
+  ..strokeWidth = 1;
+
+Paint explosionPaint = Paint()
+  ..color = mat.Colors.yellow
   ..strokeCap = StrokeCap.round
   ..style = PaintingStyle.fill
   ..strokeWidth = 1;
@@ -561,6 +650,11 @@ class EnginePainter extends CustomPainter {
           selectedPlanet.radius * 2 / zoom, selectedPlanetPaint);
     }
 
+    universe.explosions.forEach((explosion) {
+      canvas.drawCircle(convertWorldToScreenPosition(explosion.position),
+          explosion.radius / zoom, explosionPaint);
+    });
+
     universe.planets.forEach((planet) {
       canvas.drawCircle(
           Offset((planet.position.x - transX) / zoom,
@@ -587,3 +681,39 @@ class EnginePainter extends CustomPainter {
     return true;
   }
 }
+
+class Tutorial {
+  Function isFinished;
+  String text;
+
+  Tutorial(this.isFinished, this.text);
+}
+
+int currentTutorial = 0;
+
+List<Tutorial> tutorials = [
+  Tutorial(() {
+    return scrolled;
+  }, "Scroll with the mouse to zoom in and out"),
+  Tutorial(() {
+    return panned;
+  }, "Hold space bar and use mouse to pan camera"),
+  Tutorial(() {
+    return spawned;
+  }, "Left click empty space to spawn a new body"),
+  Tutorial(() {
+    return selected;
+  }, "Left click a body to select it"),
+  Tutorial(() {
+    return spawnSelect;
+  }, "Hold shift and left click an empty space to spawn and select a body"),
+  Tutorial(() {
+    return accelerated;
+  }, "Hold W,A,S,D keys to accelerate selected body"),
+  Tutorial(() {
+    return stopped;
+  }, "Press Q to stop selected body"),
+  Tutorial(() {
+    return massChanged;
+  }, "Hold shift and scroll to increase/decrease selected body's mass")
+];
