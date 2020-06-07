@@ -42,7 +42,6 @@ class Universe {
   double rightRound = 300;
   double topBound = 0;
   double bottomBound = 300;
-  bool bounded = true;
   int tailLength = 15;
 
   StreamController<PlanetCollision> onPlanetDestroyed = StreamController();
@@ -65,22 +64,6 @@ class Universe {
       }
     });
 
-    if (bounded) {
-      planets.forEach((planet) {
-        if (planet.position.x > rightRound - planet.radius) {
-          planet.velocity.x = -planet.velocity.x;
-        } else if (planet.position.x < planet.radius - leftBound) {
-          planet.velocity.x = -planet.velocity.x;
-        }
-
-        if (planet.position.y > bottomBound - planet.radius) {
-          planet.velocity.y = -planet.velocity.y;
-        } else if (planet.position.y < planet.radius - topBound) {
-          planet.velocity.y = -planet.velocity.y;
-        }
-      });
-    }
-
     // check for collisions
     for (int i = 0; i < planets.length; i++) {
       for (int j = i + 1; j < planets.length; j++) {
@@ -93,8 +76,6 @@ class Universe {
           planets[i].mass = combinedMass;
           planets[i].velocity = combinedMomentum / combinedMass;
           onPlanetDestroyed.add(PlanetCollision(planets[i], planets[j]));
-
-
           planets.removeAt(j);
           j--;
         }
