@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/material.dart' as mat;
-import 'package:onlinepainter/engine.dart';
+import 'package:onlinepainter/game_engine/game_ui.dart';
+import 'package:onlinepainter/spaceblast/space_blast.dart';
 
 void main() {
   runApp(MyApp());
@@ -12,10 +12,10 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Blast Abouts',
       theme: ThemeData(
-        primarySwatch: mat.Colors.orange,
+        primarySwatch: Colors.orange,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: GameEngine(),
+      home: GameUI(game: SpaceBlast(),),
       debugShowCheckedModeBanner: false,
     );
   }

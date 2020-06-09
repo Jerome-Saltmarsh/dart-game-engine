@@ -48,11 +48,6 @@ class Explosion {
 
 class Universe {
   List<Planet> planets = [];
-  List<Explosion> explosions = [];
-  double leftBound = 0;
-  double rightRound = 300;
-  double topBound = 0;
-  double bottomBound = 300;
   int tailLength = 15;
 
   StreamController<PlanetCollision> onPlanetDestroyed = StreamController();
