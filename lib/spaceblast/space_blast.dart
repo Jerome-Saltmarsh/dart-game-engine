@@ -117,6 +117,10 @@ class SpaceBlast extends Game {
 
     readUserInput();
     universe.update();
+
+    if (planetSelected) {
+      centerCamera(selectedPlanet.position);
+    }
   }
 
   void dispose() {
