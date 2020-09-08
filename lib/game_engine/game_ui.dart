@@ -70,10 +70,11 @@ class _GameUIState extends State<GameUI> {
   Size screenSize;
   bool initialized = false;
   FocusNode keyboardFocusNode;
+  Timer updateTimer;
 
   @override
   void initState() {
-    Timer.periodic(Duration(milliseconds: 1000 ~/ widget.fps), (timer) {
+    updateTimer = Timer.periodic(Duration(milliseconds: 1000 ~/ widget.fps), (timer) {
       widget.fixedUpdate();
       setState(_doNothing);
     });
@@ -160,6 +161,13 @@ class _GameUIState extends State<GameUI> {
       ),
     );
   }
+
+  @override
+  void dispose() {
+    super.dispose();
+    updateTimer.cancel();
+    keyboardFocusNode.dispose();
+  }
 }
 
 class GameUIPainter extends CustomPainter {
@@ -177,4 +185,6 @@ class GameUIPainter extends CustomPainter {
   bool shouldRepaint(CustomPainter oldDelegate) {
     return true;
   }
+
+
 }
