@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/material.dart' as mat;
 import 'package:flutter/services.dart';
 import 'package:positioned_tap_detector/positioned_tap_detector.dart';
 import 'package:vector_math/vector_math.dart';
+import 'dart:ui' as ui;
 
 typedef PaintGame = Function(Canvas canvas, Size size);
 
@@ -12,9 +14,9 @@ typedef PaintGame = Function(Canvas canvas, Size size);
 Offset _mousePosition;
 Offset _previousMousePosition;
 Offset _mouseDelta;
+DateTime _lastLeftClicked;
 
 // global variables
-DateTime lastLeftClicked;
 Vector2 camera = Vector2(0, 0);
 double cameraZ = 1;
 Paint paint = Paint()
@@ -27,11 +29,33 @@ Paint paint = Paint()
 Offset get mousePosition => _mousePosition;
 Offset get previousMousePosition => _previousMousePosition;
 Offset get mouseVelocity => _mouseDelta;
-bool get mouseClicked => lastLeftClicked != null && DateTime.now().difference(lastLeftClicked).inMilliseconds < 500;
+double get mousePosX => _mousePosition.dx;
+double get mousePosY => _mousePosition.dy;
+bool get mouseClicked => _lastLeftClicked != null && millisecondsSince(_lastLeftClicked) < 500;
 
-// methods
+// utility methods
+int millisecondsSince(DateTime value){
+  return durationSince(value).inMilliseconds;
+}
+
+Duration durationSince(DateTime value){
+  return DateTime.now().difference(value);
+}
+
 bool keyPressed(LogicalKeyboardKey key) {
   return RawKeyboard.instance.keysPressed.contains(key);
+}
+
+Future<ui.Image> loadImage(String url) async {
+
+  final ByteData data = await rootBundle.load(url);
+  final List<int> img = Uint8List.view(data.buffer);
+
+  final Completer<ui.Image> completer = new Completer();
+  ui.decodeImageFromList(img, (ui.Image img) {
+    return completer.complete(img);
+  });
+  return completer.future;
 }
 
 Offset convertWorldToScreenPosition(Vector2 position) {
@@ -50,6 +74,8 @@ abstract class GameUI extends StatefulWidget {
   final Color backgroundColor;
   final String title;
 
+  Future init();
+
   /// used to update the game logic
   void fixedUpdate();
   /// used to draw the game
@@ -63,14 +89,12 @@ abstract class GameUI extends StatefulWidget {
   _GameUIState createState() => _GameUIState();
 }
 
-
 class _GameUIState extends State<GameUI> {
 
   // variables
   double minZoom = 0.005;
   double cameraZ = 1;
   Size screenSize;
-  bool initialized = false;
   FocusNode keyboardFocusNode;
   Timer updateTimer;
 
@@ -81,6 +105,7 @@ class _GameUIState extends State<GameUI> {
       setState(_doNothing);
     });
     keyboardFocusNode = FocusNode();
+    widget.init();
     super.initState();
   }
 
@@ -90,12 +115,7 @@ class _GameUIState extends State<GameUI> {
 
   @override
   Widget build(BuildContext context) {
-    // game.screenSize = screenSize;
 
-    if (!initialized) {
-      initialized = true;
-      // game.init();
-    }
     if (!keyboardFocusNode.hasFocus) {
       FocusScope.of(context).requestFocus(keyboardFocusNode);
     }
@@ -139,7 +159,7 @@ class _GameUIState extends State<GameUI> {
       },
       child: PositionedTapDetector(
         onTap: (position) {
-          lastLeftClicked = DateTime.now();
+          _lastLeftClicked = DateTime.now();
           // game.handleMouseClicked(position.relative);
         },
         child: Listener(
