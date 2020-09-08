@@ -14,6 +14,7 @@ Offset _previousMousePosition;
 Offset _mouseDelta;
 
 // global variables
+DateTime lastLeftClicked;
 Vector2 camera = Vector2(0, 0);
 double cameraZ = 1;
 Paint paint = Paint()
@@ -26,6 +27,7 @@ Paint paint = Paint()
 Offset get mousePosition => _mousePosition;
 Offset get previousMousePosition => _previousMousePosition;
 Offset get mouseVelocity => _mouseDelta;
+bool get mouseClicked => lastLeftClicked != null && DateTime.now().difference(lastLeftClicked).inMilliseconds < 500;
 
 // methods
 bool keyPressed(LogicalKeyboardKey key) {
@@ -137,6 +139,7 @@ class _GameUIState extends State<GameUI> {
       },
       child: PositionedTapDetector(
         onTap: (position) {
+          lastLeftClicked = DateTime.now();
           // game.handleMouseClicked(position.relative);
         },
         child: Listener(
@@ -185,6 +188,4 @@ class GameUIPainter extends CustomPainter {
   bool shouldRepaint(CustomPainter oldDelegate) {
     return true;
   }
-
-
 }

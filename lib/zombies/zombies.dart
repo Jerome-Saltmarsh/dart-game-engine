@@ -8,7 +8,9 @@ class Zombies extends GameUI {
 
   @override
   void draw(Canvas canvas, Size size) {
-    canvas.drawCircle(mousePosition, 10, paint);
+    if(mousePosition != null){
+      canvas.drawCircle(mousePosition, 10, paint);
+    }
   }
 
   @override
@@ -16,6 +18,10 @@ class Zombies extends GameUI {
 
     if(keyPressed(LogicalKeyboardKey.arrowUp)){
       paint.color = Colors.yellow;
+    }
+
+    if(mouseClicked){
+      paint.color = Colors.grey;
     }
   }
 
