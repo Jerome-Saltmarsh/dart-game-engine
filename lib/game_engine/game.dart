@@ -6,13 +6,19 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:vector_math/vector_math_64.dart';
 
+// variables
+Vector2 camera = Vector2(0, 0);
+
+// methods
+bool keyPressed(LogicalKeyboardKey key) {
+  return RawKeyboard.instance.keysPressed.contains(key);
+}
+
 abstract class Game {
 
   BuildContext context;
   Color backgroundColor = mat.Colors.black;
   Random random = Random();
-  Vector2 camera = Vector2(0, 0);
-  Random rand = Random();
   double minZoom = 0.005;
   Offset mousePosition;
   Offset previousMousePosition;
@@ -67,22 +73,18 @@ abstract class Game {
     camera += (translation * zoom * smooth);
   }
 
-  void handlePointerHoverEvent(PointerHoverEvent pointerHoverEvent) {
-    previousMousePosition = mousePosition;
-    mousePosition = pointerHoverEvent.position;
-    mouseDelta = pointerHoverEvent.delta;
-    handleMouseMovement();
-  }
-
-  bool keyIsPressed(LogicalKeyboardKey key) {
-    return RawKeyboard.instance.keysPressed.contains(key);
-  }
+  // void handlePointerHoverEvent(PointerHoverEvent pointerHoverEvent) {
+  //   previousMousePosition = mousePosition;
+  //   mousePosition = pointerHoverEvent.position;
+  //   mouseDelta = pointerHoverEvent.delta;
+  //   handleMouseMovement();
+  // }
 
   double randomVal(double max) {
-    if (rand.nextBool()) {
-      return -rand.nextDouble() * max;
+    if (random.nextBool()) {
+      return -random.nextDouble() * max;
     }
-    return rand.nextDouble() * max;
+    return random.nextDouble() * max;
   }
 
   Offset randomOffset(Offset offset, double range) {

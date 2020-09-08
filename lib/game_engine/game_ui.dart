@@ -1,14 +1,23 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:onlinepainter/game_engine/game.dart';
+import 'package:flutter/material.dart' as mat;
 import 'package:positioned_tap_detector/positioned_tap_detector.dart';
+import 'package:vector_math/vector_math.dart';
 
-class GameUI extends StatefulWidget {
+typedef PaintGame = Function(Canvas canvas, Size size);
+
+abstract class GameUI extends StatefulWidget {
+
   final int fps;
-  final Game game;
+  final Color backgroundColor;
+  final String title;
 
-  GameUI({@required this.game, this.fps = 60});
+  void fixedUpdate();
+  void draw(Canvas canvas, Size size);
+
+  GameUI({this.fps = 60, this.backgroundColor = mat.Colors.green, this.title = 'demo'});
 
   @override
   _GameUIState createState() => _GameUIState();
@@ -17,105 +26,131 @@ class GameUI extends StatefulWidget {
 
 class _GameUIState extends State<GameUI> {
 
+  // variables
+  double minZoom = 0.005;
+  Offset mousePosition;
+  Offset previousMousePosition;
+  Offset mouseDelta;
+  double cameraZ = 1;
+  Size screenSize;
   bool initialized = false;
   FocusNode keyboardFocusNode;
-  Size screenSize;
-  Game get game => widget.game;
+
+  final Random random = Random();
+  final Vector2 zero = Vector2.zero();
 
   @override
   void initState() {
     Timer.periodic(Duration(milliseconds: 1000 ~/ widget.fps), (timer) {
-      fixedUpdate();
+      // fixedUpdate();
+      widget.fixedUpdate();
+      setState(_doNothing);
     });
     keyboardFocusNode = FocusNode();
     super.initState();
   }
 
+  void _doNothing(){
+
+  }
+
   @override
   Widget build(BuildContext context) {
-    game.context = context;
-    screenSize = MediaQuery.of(context).size;
-    game.screenSize = screenSize;
+    // game.screenSize = screenSize;
 
     if (!initialized) {
       initialized = true;
-      game.init();
+      // game.init();
     }
     if (!keyboardFocusNode.hasFocus) {
       FocusScope.of(context).requestFocus(keyboardFocusNode);
     }
 
-    return RawKeyboardListener(
-      focusNode: keyboardFocusNode,
-      onKey: (key) {
-        game.handleKeyPressed(key);
-      },
-      child: Scaffold(
-        appBar: game.buildAppBar(context),
-        body: Stack(
-          children: [
-            buildBody(context),
-            ...game.buildUI(context),
-          ],
+    return MaterialApp(
+      title: widget.title,
+      theme: ThemeData(
+        primarySwatch: mat.Colors.orange,
+        visualDensity: VisualDensity.adaptivePlatformDensity,
+      ),
+      home: RawKeyboardListener(
+        focusNode: keyboardFocusNode,
+        onKey: (key) {
+          // game.handleKeyPressed(key);
+        },
+        child: Scaffold(
+          // appBar: game.buildAppBar(context),
+          body: Builder(
+            builder: (context){
+              screenSize = MediaQuery.of(context).size;
+              return Stack(
+                children: [
+                  buildBody(context),
+                  // ...game.buildUI(context),
+                ],
+              );
+            },
+          ),
         ),
       ),
+      debugShowCheckedModeBanner: false,
     );
-  }
-
-  void fixedUpdate() {
-    game.update();
-    setState(doNothing);
-  }
-
-  void doNothing() {
-    // prevents creating a new lambda each frame.
   }
 
   @override
   void dispose() {
-    game.dispose();
+    // game.dispose();
     super.dispose();
   }
 
   Widget buildBody(BuildContext context) {
+    print("buildBody()");
+
     return MouseRegion(
-      onHover: game.handlePointerHoverEvent,
+      onHover: handlePointerHoverEvent,
       child: PositionedTapDetector(
         onTap: (position) {
-          game.handleMouseClicked(position.relative);
+          // game.handleMouseClicked(position.relative);
         },
         child: Listener(
           onPointerSignal: (pointerSignalEvent) {
             if (pointerSignalEvent is PointerScrollEvent) {
-              game.handleMouseScroll(pointerSignalEvent.scrollDelta.dy);
+              // game.handleMouseScroll(pointerSignalEvent.scrollDelta.dy);
+
             }else{
               print("unhandled pointer signal event $pointerSignalEvent");
             }
           },
           child: Container(
-            color: game.backgroundColor,
+            color: widget.backgroundColor,
             width: screenSize.width,
             height: screenSize.height,
             child: CustomPaint(
               size: screenSize,
-              painter: GameUIPainter(game),
+              painter: GameUIPainter(paintGame: widget.draw),
             ),
           ),
         ),
       ),
     );
   }
+
+  void handlePointerHoverEvent(PointerHoverEvent pointerHoverEvent) {
+    previousMousePosition = mousePosition;
+    mousePosition = pointerHoverEvent.position;
+    mouseDelta = pointerHoverEvent.delta;
+    // handleMouseMovement();
+  }
 }
 
 class GameUIPainter extends CustomPainter {
 
-  Game game;
+  final PaintGame paintGame;
 
-  GameUIPainter(this.game);
+  GameUIPainter({this.paintGame});
 
   @override
   void paint(Canvas canvas, Size size) {
-    game.draw(canvas, size);
+    paintGame(canvas, size);
   }
 
   @override

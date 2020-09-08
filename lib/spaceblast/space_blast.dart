@@ -1,12 +1,19 @@
+import 'dart:async';
+import 'dart:ui';
+import 'dart:ui' as ui;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import 'package:flutter/material.dart' as mat;
 import 'package:flutter/painting.dart';
+import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:onlinepainter/game_engine/game.dart';
 import 'package:onlinepainter/spaceblast/universe.dart';
 import 'package:vector_math/vector_math_64.dart';
+
+import 'package:flutter/services.dart' show rootBundle;
 
 class Tutorial {
   Function isFinished;
@@ -105,6 +112,22 @@ class SpaceBlast extends Game {
       spawnRandomPlanet();
     }
     selectedPlanet = universe.planets[0];
+    l();
+  }
+
+  ui.Image potion;
+
+  Future l()async {
+    final ByteData data = await rootBundle.load('images/potion.png');
+    potion = await loadImage(new Uint8List.view(data.buffer));
+  }
+
+  Future<ui.Image> loadImage(List<int> img) async {
+    final Completer<ui.Image> completer = new Completer();
+    ui.decodeImageFromList(img, (ui.Image img) {
+      return completer.complete(img);
+    });
+    return completer.future;
   }
 
   void update() {
@@ -222,46 +245,50 @@ class SpaceBlast extends Game {
             style: TextStyle(color: mat.Colors.blueAccent, fontSize: 20),
           ),
         ),
-      if (isMobile)
-        Container(
-          width: double.infinity,
-          height: size.height,
-          alignment: Alignment.bottomRight,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              IconButton(
-                icon: Icon(
-                  Icons.zoom_out,
-                  color: mat.Colors.orange,
-                  size: 30,
-                ),
-                onPressed: () {
-                  zoom *= 1.1;
-                  if (planetSelected) {
-                    centerCamera(selectedPlanet.position, smooth: 1);
-                    return;
-                  }
-                },
-              ),
-              IconButton(
-                icon: Icon(
-                  Icons.zoom_in,
-                  color: mat.Colors.orange,
-                  size: 30,
-                ),
-                onPressed: () {
-                  zoom *= 0.9;
-                  if (planetSelected) {
-                    centerCamera(selectedPlanet.position, smooth: 1);
-                    return;
-                  }
-                },
-              ),
-            ],
-          ),
-        )
+      if (isMobile) buildMobile()
     ];
+  }
+
+  Widget buildMobile(){
+    Size size = MediaQuery.of(context).size;
+    return Container(
+      width: double.infinity,
+      height: size.height,
+      alignment: Alignment.bottomRight,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          IconButton(
+            icon: Icon(
+              Icons.zoom_out,
+              color: mat.Colors.orange,
+              size: 30,
+            ),
+            onPressed: () {
+              zoom *= 1.1;
+              if (planetSelected) {
+                centerCamera(selectedPlanet.position, smooth: 1);
+                return;
+              }
+            },
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.zoom_in,
+              color: mat.Colors.orange,
+              size: 30,
+            ),
+            onPressed: () {
+              zoom *= 0.9;
+              if (planetSelected) {
+                centerCamera(selectedPlanet.position, smooth: 1);
+                return;
+              }
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -274,6 +301,49 @@ class SpaceBlast extends Game {
           selectedPlanet.radius * 2 / zoom, selectedPlanetPaint);
     }
 
+    Paint paint = Paint()
+      ..color = mat.Colors.white
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.fill
+      ..strokeWidth = 1;
+
+
+    if(potion != null){
+      // canvas.drawImage(potion, Offset(250, 0),  paint);
+
+      canvas.drawImageRect(potion, Rect.fromLTWH(0, 0, 100, 100), Rect.fromLTWH(100, 10, 400, 500), paint);
+
+      // canvas.drawAtlas(potion,  [RSTransform.fromComponents(
+      //     rotation: 0.0,
+      //     scale: 1.0,
+      //     anchorX: 0.0,
+      //     anchorY: 0.0,
+      //     translateX: 0.0,
+      //     translateY: 0.0)], [], [], BlendMode.lighten, null, paint);
+
+      // canvas.drawAtlas(
+      //     potion,
+      //     [
+      //       /* Identity transform */
+      //       RSTransform.fromComponents(
+      //           rotation: 0.0,
+      //           scale: 1.0,
+      //           anchorX: 0.0,
+      //           anchorY: 0.0,
+      //           translateX: 0.0,
+      //           translateY: 0.0)
+      //     ],
+      //     [
+      //       Rect.fromLTWH(0.0, 0.0, 50.0, 50.0)
+      //     ],
+      //     [/* No need for colors */],
+      //     BlendMode.color,
+      //     null /* No need for cullRect */,
+      //     paint);
+    }
+
+
+
     universe.planets.forEach((planet) {
       canvas.drawCircle(
           Offset((planet.position.x - transX) / zoom,
@@ -282,9 +352,6 @@ class SpaceBlast extends Game {
           circlePaint);
 
       for (int i = 0; i < planet.positionHistory.length - 1; i++) {
-        // comet
-//        Offset pos = convertWorldToScreenPosition(planet.positionHistory.elementAt(i));
-//        canvas.drawCircle(randomOffset(pos, (planet.positionHistory.length - i) * 0.5), 2, circlePaint);
 
         canvas.drawLine(
             convertWorldToScreenPosition(planet.positionHistory.elementAt(i)),
@@ -298,33 +365,33 @@ class SpaceBlast extends Game {
   void readUserInput() {
     if (selectedPlanet == null) {
       double speed = 10 * zoom;
-      if (keyIsPressed(LogicalKeyboardKey.keyA)) {
+      if (keyPressed(LogicalKeyboardKey.keyA)) {
         camera.x -= speed;
       }
-      if (keyIsPressed(LogicalKeyboardKey.keyW)) {
+      if (keyPressed(LogicalKeyboardKey.keyW)) {
         camera.y -= speed;
       }
-      if (keyIsPressed(LogicalKeyboardKey.keyD)) {
+      if (keyPressed(LogicalKeyboardKey.keyD)) {
         camera.x += speed;
       }
-      if (keyIsPressed(LogicalKeyboardKey.keyS)) {
+      if (keyPressed(LogicalKeyboardKey.keyS)) {
         camera.y += speed;
       }
     } else {
       double acceleration = 0.5;
-      if (keyIsPressed(LogicalKeyboardKey.keyA)) {
+      if (keyPressed(LogicalKeyboardKey.keyA)) {
         selectedPlanet.velocity.x -= acceleration;
         accelerated = true;
       }
-      if (keyIsPressed(LogicalKeyboardKey.keyW)) {
+      if (keyPressed(LogicalKeyboardKey.keyW)) {
         selectedPlanet.velocity.y -= acceleration;
         accelerated = true;
       }
-      if (keyIsPressed(LogicalKeyboardKey.keyD)) {
+      if (keyPressed(LogicalKeyboardKey.keyD)) {
         selectedPlanet.velocity.x += acceleration;
         accelerated = true;
       }
-      if (keyIsPressed(LogicalKeyboardKey.keyS)) {
+      if (keyPressed(LogicalKeyboardKey.keyS)) {
         selectedPlanet.velocity.y += acceleration;
         accelerated = true;
       }
@@ -333,7 +400,7 @@ class SpaceBlast extends Game {
 
   @override
   void handleMouseMovement() {
-    if (keyIsPressed(LogicalKeyboardKey.space)) {
+    if (keyPressed(LogicalKeyboardKey.space)) {
       camera -= mouseWorldVelocity;
       panned = true;
     }
@@ -343,7 +410,7 @@ class SpaceBlast extends Game {
   void handleMouseScroll(double scroll) {
     scrolled = true;
 
-    if (planetSelected && keyIsPressed(LogicalKeyboardKey.shiftLeft)) {
+    if (planetSelected && keyPressed(LogicalKeyboardKey.shiftLeft)) {
       selectedPlanet.mass += 0.05 + selectedPlanet.mass * 0.001 * -scroll;
       massChanged = true;
       return;
@@ -488,7 +555,7 @@ class SpaceBlast extends Game {
 
     spawned = true;
 
-    if (keyIsPressed(LogicalKeyboardKey.shiftLeft)) {
+    if (keyPressed(LogicalKeyboardKey.shiftLeft)) {
       selectPlanet(planet);
       spawnSelect = true;
     }
