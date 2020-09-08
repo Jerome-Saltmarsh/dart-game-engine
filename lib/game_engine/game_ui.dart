@@ -1,12 +1,46 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/material.dart' as mat;
+import 'package:flutter/services.dart';
 import 'package:positioned_tap_detector/positioned_tap_detector.dart';
 import 'package:vector_math/vector_math.dart';
 
 typedef PaintGame = Function(Canvas canvas, Size size);
+
+// private global variables
+Offset _mousePosition;
+Offset _previousMousePosition;
+Offset _mouseDelta;
+
+// global variables
+Vector2 camera = Vector2(0, 0);
+double cameraZ = 1;
+Paint paint = Paint()
+  ..color = mat.Colors.red
+  ..strokeCap = StrokeCap.round
+  ..style = PaintingStyle.fill
+  ..strokeWidth = 1;
+
+// global properties
+Offset get mousePosition => _mousePosition;
+Offset get previousMousePosition => _previousMousePosition;
+Offset get mouseVelocity => _mouseDelta;
+
+// methods
+bool keyPressed(LogicalKeyboardKey key) {
+  return RawKeyboard.instance.keysPressed.contains(key);
+}
+
+Offset convertWorldToScreenPosition(Vector2 position) {
+  double transX = camera.x / cameraZ;
+  double transY = camera.y / cameraZ;
+  return Offset((position.x - transX) / cameraZ, (position.y - transY) / cameraZ);
+}
+
+Vector2 convertScreenToWorldPosition(Vector2 position) {
+  return (position * cameraZ) + (camera / cameraZ);
+}
 
 abstract class GameUI extends StatefulWidget {
 
@@ -14,8 +48,12 @@ abstract class GameUI extends StatefulWidget {
   final Color backgroundColor;
   final String title;
 
+  /// used to update the game logic
   void fixedUpdate();
+  /// used to draw the game
   void draw(Canvas canvas, Size size);
+  /// used to build the ui
+  Widget build(BuildContext context);
 
   GameUI({this.fps = 60, this.backgroundColor = mat.Colors.green, this.title = 'demo'});
 
@@ -28,21 +66,14 @@ class _GameUIState extends State<GameUI> {
 
   // variables
   double minZoom = 0.005;
-  Offset mousePosition;
-  Offset previousMousePosition;
-  Offset mouseDelta;
   double cameraZ = 1;
   Size screenSize;
   bool initialized = false;
   FocusNode keyboardFocusNode;
 
-  final Random random = Random();
-  final Vector2 zero = Vector2.zero();
-
   @override
   void initState() {
     Timer.periodic(Duration(milliseconds: 1000 ~/ widget.fps), (timer) {
-      // fixedUpdate();
       widget.fixedUpdate();
       setState(_doNothing);
     });
@@ -85,7 +116,7 @@ class _GameUIState extends State<GameUI> {
               return Stack(
                 children: [
                   buildBody(context),
-                  // ...game.buildUI(context),
+                  // widget.build(context),
                 ],
               );
             },
@@ -96,17 +127,13 @@ class _GameUIState extends State<GameUI> {
     );
   }
 
-  @override
-  void dispose() {
-    // game.dispose();
-    super.dispose();
-  }
-
   Widget buildBody(BuildContext context) {
-    print("buildBody()");
-
     return MouseRegion(
-      onHover: handlePointerHoverEvent,
+      onHover: (PointerHoverEvent pointerHoverEvent){
+        _previousMousePosition = _mousePosition;
+        _mousePosition = pointerHoverEvent.position;
+        _mouseDelta = pointerHoverEvent.delta;
+      },
       child: PositionedTapDetector(
         onTap: (position) {
           // game.handleMouseClicked(position.relative);
@@ -132,13 +159,6 @@ class _GameUIState extends State<GameUI> {
         ),
       ),
     );
-  }
-
-  void handlePointerHoverEvent(PointerHoverEvent pointerHoverEvent) {
-    previousMousePosition = mousePosition;
-    mousePosition = pointerHoverEvent.position;
-    mouseDelta = pointerHoverEvent.delta;
-    // handleMouseMovement();
   }
 }
 
