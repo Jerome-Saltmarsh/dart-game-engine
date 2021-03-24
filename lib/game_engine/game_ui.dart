@@ -8,6 +8,23 @@ import 'package:positioned_tap_detector/positioned_tap_detector.dart';
 import 'package:vector_math/vector_math.dart';
 import 'dart:ui' as ui;
 
+
+class Sprite {
+  final List<ui.Image> images;
+  int index = 0;
+
+  static final Duration _milliseconds24 = Duration(milliseconds: 24);
+
+  Sprite(this.images){
+    Timer.periodic(_milliseconds24, (timer) {
+      index = (index + 1) % images.length;
+    });
+  }
+
+  ui.Image get image => images[index];
+}
+
+
 typedef PaintGame = Function(Canvas canvas, Size size);
 
 // private global variables
@@ -17,12 +34,14 @@ Offset _mouseDelta;
 DateTime _lastLeftClicked;
 
 // global variables
+Canvas canvas;
 Vector2 camera = Vector2(0, 0);
 double cameraZ = 1;
 Paint paint = Paint()
   ..color = mat.Colors.red
   ..strokeCap = StrokeCap.round
   ..style = PaintingStyle.fill
+  ..isAntiAlias = false
   ..strokeWidth = 1;
 
 // global properties
@@ -200,8 +219,9 @@ class GameUIPainter extends CustomPainter {
   GameUIPainter({this.paintGame});
 
   @override
-  void paint(Canvas canvas, Size size) {
-    paintGame(canvas, size);
+  void paint(Canvas canvass, Size size) {
+    canvas = canvass;
+    paintGame(canvass, size);
   }
 
   @override

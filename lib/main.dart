@@ -9,7 +9,7 @@ void main() {
 //   @override
 //   Widget build(BuildContext context) {
 //     return MaterialApp(
-//       title: 'Blast Abouts',
+//       title: 'Blast Abouts'r,
 //       theme: ThemeData(
 //         primarySwatch: Colors.orange,
 //         visualDensity: VisualDensity.adaptivePlatformDensity,
