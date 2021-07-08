@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:onlinepainter/game_engine/game_ui.dart';
 import 'dart:ui' as ui;
-
 import 'package:vector_math/vector_math.dart';
 
 class Images {
@@ -49,6 +48,7 @@ class Zombies extends GameUI {
   ui.Image numbers3;
   ui.Image numbers4;
   Sprite numbers;
+  double rotation = 0;
 
   Vector2 playerPosition = Vector2(200, 200);
 
@@ -71,35 +71,14 @@ class Zombies extends GameUI {
 
     canvas.drawRRect(RRect.fromLTRBR(10, 20, 50, 100, Radius.circular(10)), paint);
 
-    if (images.skeletonIdle != null) {
-      // images.skeletonWalk.width / 3;
-
-      // canvas.rotate(1);
-      // canvas.rotate(angle);
-      // angle += 0.01;
-      // canvas.drawImageRect(
-      //     images.skeletonIdle,
-      //     Rect.fromLTWH(0, 0, images.skeletonIdle.width.toDouble(),
-      //         images.skeletonIdle.height.toDouble()),
-      //     Rect
-      //     Rect.fromLTWH(
-      //         playerPosition.x,
-      //         playerPosition.y,
-      //         images.skeletonIdle.width.toDouble(),
-      //         images.skeletonIdle.height.toDouble()),
-      //     paint);
-    }
-
     if (potion != null) {
       // canvas.drawImageRect(potion, Rect.fromLTWH(0, 0, 100, 100), Rect.fromLTWH(mousePosX, mousePosY, 400, 500), paint);
       canvas.drawAtlas(potion, <RSTransform>[
         RSTransform.fromComponents(
-          rotation: 39,
+          rotation: rotation,
           scale: 1.0,
-          // Center of the sprite relative to its rect
-          anchorX: 20.0,
-          anchorY: 20.0,
-          // Location at which to draw the center of the sprite
+          anchorX: 0.0,
+          anchorY: 0.0,
           translateX: 155,
           translateY: 215,
         )
@@ -109,6 +88,8 @@ class Zombies extends GameUI {
 
   @override
   void fixedUpdate() {
+
+    rotation += 0.01;
     double speed = 4;
     if (keyPressed(LogicalKeyboardKey.keyW)) {
       playerPosition.y -= speed;
